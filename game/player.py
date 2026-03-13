@@ -13,7 +13,7 @@ from .constants import (
     MISSILE_COOLDOWN, MISSILE_BASE_AOE_RADIUS, MISSILE_UPGRADE_AOE_GROWTH
 )
 from .effects import EngineGlow, MuzzleFlash
-from .projectiles import DartManager, Laser, MissileManager
+from .projectiles import DartManager, Laser, MissileManager, BoomerangManager
 
 
 @dataclass
@@ -41,6 +41,11 @@ class Player:
     missile_level: int
     missile_manager: MissileManager
     missile_timer: float
+    
+    # Boomerang state
+    has_boomerang: bool
+    boomerang_level: int
+    boomerang_manager: BoomerangManager
 
     def __init__(self, x: float, y: float):
         self.x = x
@@ -65,6 +70,11 @@ class Player:
         self.missile_level = 0
         self.missile_manager = MissileManager()
         self.missile_timer = 0.0
+        
+        # Boomerang initialization
+        self.has_boomerang = False
+        self.boomerang_level = 0
+        self.boomerang_manager = BoomerangManager()
 
     def upgrade_laser(self) -> None:
         """Upgrade or buy laser."""
@@ -91,6 +101,16 @@ class Player:
             self.missile_level = 1
         else:
             self.missile_level += 1
+
+    def upgrade_boomerang(self) -> None:
+        """Upgrade or buy boomerangs."""
+        if not self.has_boomerang:
+            self.has_boomerang = True
+            self.boomerang_level = 1
+        else:
+            self.boomerang_level += 1
+        
+        self.boomerang_manager.set_count(self.boomerang_level)
 
     def handle_mouse(self, pos: Tuple[int, int]) -> None:
         self.target_x = pos[0]
@@ -126,6 +146,9 @@ class Player:
                 self.missile_timer = MISSILE_COOLDOWN
             self.missile_manager.update(dt)
 
+        if self.has_boomerang:
+            self.boomerang_manager.update(self.x, self.y, dt)
+
         self.dart_manager.update(dt)
 
     def shoot(self) -> None:
@@ -146,6 +169,10 @@ class Player:
         self.missile_manager.spawn(lx, y, rx, y, aoe_radius)
 
     def draw(self, surface: pygame.Surface) -> None:
+        # -2. Boomerangs
+        if self.has_boomerang:
+            self.boomerang_manager.draw(surface)
+
         # -1. Missiles
         if self.has_missile:
             self.missile_manager.draw(surface)

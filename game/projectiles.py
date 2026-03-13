@@ -7,9 +7,77 @@ from dataclasses import dataclass
 from .constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, DART_SPEED, DART_WIDTH, DART_HEIGHT,
     DART_LIFETIME, COLOR_WHITE, COLOR_YELLOW, COLOR_CYAN, LASER_WIDTH,
-    COLOR_RED, MISSILE_SPEED, MISSILE_WIDTH, MISSILE_HEIGHT
+    COLOR_RED, MISSILE_SPEED, MISSILE_WIDTH, MISSILE_HEIGHT,
+    BOOMERANG_WIDTH, BOOMERANG_HEIGHT, COLOR_BROWN, BOOMERANG_ORBIT_RADIUS,
+    BOOMERANG_SPEED, COLOR_BLACK
 )
 from .effects import DartTrail, ParticleSystem, MissileTrail, Explosion
+import math
+
+
+@dataclass
+class Boomerang:
+    """A V-shaped brown shape that spins in circles."""
+    angle: float # Orbit angle
+    spin_angle: float # Self spin angle
+    x: float = 0
+    y: float = 0
+
+    def update(self, player_x: float, player_y: float, dt: float) -> None:
+        """Update boomerang orbit and spin."""
+        self.angle += BOOMERANG_SPEED * dt
+        self.spin_angle += BOOMERANG_SPEED * dt * 2 # Spins faster than it orbits
+        
+        rad = math.radians(self.angle)
+        self.x = player_x + math.cos(rad) * BOOMERANG_ORBIT_RADIUS
+        self.y = player_y + math.sin(rad) * BOOMERANG_ORBIT_RADIUS
+
+    def draw(self, surface: pygame.Surface) -> None:
+        """Draw the V-shaped boomerang."""
+        # Create a surface for rotation
+        size = int(max(BOOMERANG_WIDTH, BOOMERANG_HEIGHT) * 1.5)
+        temp_surface = pygame.Surface((size, size), pygame.SRCALPHA)
+        
+        # Draw V shape on temp surface
+        cx, cy = size // 2, size // 2
+        w, h = BOOMERANG_WIDTH // 2, BOOMERANG_HEIGHT // 2
+        points = [
+            (cx, cy - h), # Top
+            (cx + w, cy + h), # Bottom Right
+            (cx, cy + h // 2), # Middle Inner
+            (cx - w, cy + h) # Bottom Left
+        ]
+        pygame.draw.polygon(temp_surface, COLOR_BROWN, points)
+        pygame.draw.polygon(temp_surface, COLOR_BLACK, points, 2)
+        
+        # Rotate the surface
+        rotated_surface = pygame.transform.rotate(temp_surface, -self.spin_angle)
+        rect = rotated_surface.get_rect(center=(int(self.x), int(self.y)))
+        surface.blit(rotated_surface, rect)
+
+
+class BoomerangManager:
+    """Manages all boomerangs circling the player."""
+    
+    def __init__(self):
+        self.boomerangs: List[Boomerang] = []
+
+    def set_count(self, count: int) -> None:
+        """Set the number of boomerangs, evenly spaced."""
+        self.boomerangs = []
+        for i in range(count):
+            angle = i * (360 / count)
+            self.boomerangs.append(Boomerang(angle=angle, spin_angle=0))
+
+    def update(self, player_x: float, player_y: float, dt: float) -> None:
+        """Update all boomerangs."""
+        for b in self.boomerangs:
+            b.update(player_x, player_y, dt)
+
+    def draw(self, surface: pygame.Surface) -> None:
+        """Draw all boomerangs."""
+        for b in self.boomerangs:
+            b.draw(surface)
 
 
 @dataclass

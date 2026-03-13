@@ -6,7 +6,8 @@ from game.constants import (
     COLOR_YELLOW, COLOR_RED, COLOR_GREEN, COLOR_CYAN, COLOR_ORANGE,
     UPGRADE_DART_SPEED_BASE_COST, UPGRADE_DART_SPEED_COST_MULTIPLIER,
     LASER_BASE_COST, LASER_COST_MULTIPLIER,
-    MISSILE_BASE_COST, MISSILE_UPGRADE_COST
+    MISSILE_BASE_COST, MISSILE_UPGRADE_COST,
+    BOOMERANG_COST, BOOMERANG_UPGRADE_COST, COLOR_BROWN
 )
 
 class EndScreen:
@@ -14,7 +15,7 @@ class EndScreen:
     
     def __init__(self, orbs_collected: int, level_num: int, has_next: bool, 
                  total_orbs: int = 0, dart_speed_level: int = 0, laser_level: int = 0,
-                 missile_level: int = 0):
+                 missile_level: int = 0, boomerang_level: int = 0):
         self.orbs_collected = orbs_collected
         self.level_num = level_num
         self.has_next = has_next
@@ -22,6 +23,7 @@ class EndScreen:
         self.dart_speed_level = dart_speed_level
         self.laser_level = laser_level
         self.missile_level = missile_level
+        self.boomerang_level = boomerang_level
         self.selected_option = 0  # 0 = next level, 1 = quit
         
         # Upgrade state
@@ -34,6 +36,9 @@ class EndScreen:
         self.missile_cost = MISSILE_BASE_COST if missile_level == 0 else MISSILE_UPGRADE_COST
         self.can_buy_missile = self.total_orbs >= self.missile_cost
         
+        self.boomerang_cost = BOOMERANG_COST if boomerang_level == 0 else BOOMERANG_UPGRADE_COST
+        self.can_buy_boomerang = self.total_orbs >= self.boomerang_cost
+        
         # Upgrade layout: 2 columns x 3 rows
         self.upgrade_cols = 2
         self.upgrade_rows = 3
@@ -44,7 +49,7 @@ class EndScreen:
         self.upgrade_start_y = 350
         
     def handle_event(self, event: pygame.event.Event) -> str:
-        """Handle input. Returns 'next', 'quit', 'buy_dart', 'buy_laser', 'buy_missile', or 'none'."""
+        """Handle input. Returns 'next', 'quit', 'buy_dart', 'buy_laser', 'buy_missile', 'buy_boomerang', or 'none'."""
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                 if self.selected_option == 0:
@@ -72,6 +77,8 @@ class EndScreen:
                             return 'buy_laser'
                         elif i == 2 and self.can_buy_missile:
                             return 'buy_missile'
+                        elif i == 3 and self.can_buy_boomerang:
+                            return 'buy_boomerang'
                         return 'none'
             
             # Check next/quit buttons
@@ -123,7 +130,7 @@ class EndScreen:
             ("Dart Speed", self.dart_speed_level, self.dart_speed_cost, self.can_buy_dart_speed, self._draw_dart_icon),
             ("Laser Beam", self.laser_level, self.laser_cost, self.can_buy_laser, self._draw_laser_icon),
             ("Missiles", self.missile_level, self.missile_cost, self.can_buy_missile, self._draw_missile_icon),
-            ("Locked", 0, 0, False, self._draw_locked_icon),
+            ("Boomerang", self.boomerang_level, self.boomerang_cost, self.can_buy_boomerang, self._draw_boomerang_icon),
             ("Locked", 0, 0, False, self._draw_locked_icon),
             ("Locked", 0, 0, False, self._draw_locked_icon)
         ]
@@ -217,6 +224,18 @@ class EndScreen:
         # Fire glow
         pygame.draw.circle(surface, COLOR_ORANGE, (cx, cy + 20 * scale), int(8 * scale))
         pygame.draw.circle(surface, COLOR_YELLOW, (cx, cy + 20 * scale), int(4 * scale))
+
+    def _draw_boomerang_icon(self, surface: pygame.Surface, cx: int, cy: int, scale: float = 1.0) -> None:
+        """Draw a boomerang icon."""
+        w, h = 20 * scale, 20 * scale
+        points = [
+            (cx, cy - h),
+            (cx + w, cy + h),
+            (cx, cy + h // 2),
+            (cx - w, cy + h)
+        ]
+        pygame.draw.polygon(surface, COLOR_BROWN, points)
+        pygame.draw.polygon(surface, COLOR_BLACK, points, 2)
 
     def _draw_locked_icon(self, surface: pygame.Surface, cx: int, cy: int, scale: float = 1.0) -> None:
         """Draw a locked padlock icon."""

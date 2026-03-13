@@ -97,6 +97,9 @@ class Game:
                 self.running = False
             elif event.key == pygame.K_p:
                 self.paused = not self.paused
+            elif event.key == pygame.K_e:
+                # Debug: add 1000 orbs
+                self.orb_manager.total_orbs += 1000
         
         elif event.type == pygame.MOUSEMOTION:
             self.player.handle_mouse(event.pos)
@@ -119,6 +122,12 @@ class Game:
             if self.orb_manager.total_orbs >= self.end_screen.missile_cost:
                 self.orb_manager.total_orbs -= self.end_screen.missile_cost
                 self.player.upgrade_missile()
+                # Refresh end screen
+                self._on_level_complete()
+        elif result == 'buy_boomerang':
+            if self.orb_manager.total_orbs >= self.end_screen.boomerang_cost:
+                self.orb_manager.total_orbs -= self.end_screen.boomerang_cost
+                self.player.upgrade_boomerang()
                 # Refresh end screen
                 self._on_level_complete()
         elif result == 'buy_dart':
@@ -225,6 +234,23 @@ class Game:
                             if missile in missile_manager.missiles:
                                 missile_manager.missiles.remove(missile)
                             break
+        
+        # Check boomerang collisions
+        if self.player.has_boomerang:
+            bm = self.player.boomerang_manager
+            for boomerang in bm.boomerangs:
+                for balloon in self.balloon_manager.balloons[:]:
+                    if not balloon.popped:
+                        dx = boomerang.x - balloon.x
+                        dy = boomerang.y - balloon.y
+                        dist = (dx * dx + dy * dy) ** 0.5
+                        if dist < balloon.radius + 15:
+                            # Damage balloon
+                            will_pop = balloon.tier >= 4
+                            self.balloon_manager.pop_balloon(balloon, balloon.x, balloon.y)
+                            if will_pop:
+                                self.level_manager.balloon_popped()
+                            # Boomerang pierces, so no break here
         
         # Check if level complete (all balloons popped or off-screen)
         remaining = self.balloon_manager.get_remaining_count()
