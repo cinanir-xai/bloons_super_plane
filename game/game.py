@@ -2,32 +2,33 @@
 
 import pygame
 import sys
-from typing import Optional
 
 from .constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, FPS,
-    COLOR_BLACK, COLOR_WHITE
+    COLOR_BLACK, COLOR_WHITE, COLOR_RED, COLOR_BLUE, COLOR_GREEN, COLOR_YELLOW, COLOR_PINK,
+    BALLOON_SPEED, BALLOON_SPAWN_DELAY, BALLOON_WAVE_DELAY
 )
 from .background import Background
 from .player import Player
-
-
 from .effects import Vignette
+from .enemies import BalloonManager
+
 
 class Game:
     """Main game class with retro visuals."""
     
     def __init__(self):
         pygame.init()
-        pygame.display.set_caption("SKY DEFENDER - RETRO")
+        pygame.display.set_caption("SKY DEFENDER")
         
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.clock = pygame.time.Clock()
         
         # Create game objects
         self.background = Background()
-        self.player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 100)
+        self.player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 120)
         self.vignette = Vignette(SCREEN_WIDTH, SCREEN_HEIGHT)
+        self.balloon_manager = BalloonManager()
         
         # State
         self.running = True
@@ -58,41 +59,47 @@ class Game:
         
         self.background.update(dt)
         self.player.update(dt)
+        
+        # Update balloons
+        self.balloon_manager.update(dt)
+        
+        # Check dart collisions with balloons
+        darts = self.player.dart_manager.get_darts()
+        for dart in darts[:]:
+            for balloon in self.balloon_manager.balloons[:]:
+                if self._check_collision(dart, balloon):
+                    # Pop balloon
+                    self.balloon_manager.pop_balloon(balloon, dart.x, dart.y)
+                    self.player.dart_manager.remove_dart(dart)
+                    break
+
+    def _check_collision(self, dart, balloon) -> bool:
+        """Check if dart collides with balloon."""
+        from .projectiles import Dart
+        from .enemies import Balloon
+        if isinstance(dart, Dart) and isinstance(balloon, Balloon):
+            dx = dart.x - balloon.x
+            dy = dart.y - balloon.y
+            dist = (dx * dx + dy * dy) ** 0.5
+            return dist < balloon.radius + 3
+        return False
 
     def draw(self) -> None:
         """Draw everything with clean retro style."""
         self.background.draw(self.screen)
+        self.balloon_manager.draw(self.screen)
         self.player.draw(self.screen)
-        
-        # Clean border
         self.vignette.draw(self.screen)
         
-        self._draw_ui()
         pygame.display.flip()
-
-    def _draw_ui(self) -> None:
-        """Draw clean retro UI."""
-        font = pygame.font.Font(None, 24)
-        title = font.render("SKY DEFENDER", True, COLOR_WHITE)
-        self.screen.blit(title, (20, 20))
-        
-        if self.paused:
-            pause_text = font.render("PAUSED", True, (255, 255, 0))
-            self.screen.blit(pause_text, (SCREEN_WIDTH // 2 - 40, SCREEN_HEIGHT // 2))
 
     def run(self) -> None:
         """Main game loop."""
         while self.running:
-            # Calculate delta time
             dt = self.clock.tick(FPS) / 1000.0
             
-            # Handle events
             self.handle_events()
-            
-            # Update
             self.update(dt)
-            
-            # Draw
             self.draw()
         
         pygame.quit()
