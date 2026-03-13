@@ -13,48 +13,50 @@ from .constants import (
 
 @dataclass
 class Orb:
-    """A small yellow experience orb."""
+    """A small yellow circular experience orb."""
     x: float
     y: float
     vx: float = 0.0
-    vy: float = ORB_SPEED
+    vy: float = ORB_SPEED * 2.5  # 2.5x balloon speed
+    gravity: float = 0.35  # Gravity acceleration
     collected: bool = False
 
     def update(self, dt: float, player_x: float, player_y: float) -> bool:
-        """Update orb position with magnet effect."""
+        """Update orb position with gravity and magnet effect."""
+        # Apply gravity
+        self.vy += self.gravity * dt * 60
+        
         dx = player_x - self.x
         dy = player_y - self.y
         dist = math.sqrt(dx * dx + dy * dy)
 
         if dist < ORB_MAGNET_RADIUS:
-            # Magnet effect
+            # Magnet effect - stronger pull
             strength = (1.0 - dist / ORB_MAGNET_RADIUS) * ORB_MAGNET_STRENGTH
-            self.vx += (dx / dist) * strength
-            self.vy += (dy / dist) * strength
-            
-            # Dampen velocity slightly to prevent extreme erratic movement
-            self.vx *= 0.95
-            self.vy *= 0.95
-        else:
-            # Normal drift down
-            self.vx *= 0.9
-            self.vy = (self.vy * 0.9) + (ORB_SPEED * 0.1)
+            self.vx += (dx / dist) * strength * dt * 60
+            self.vy += (dy / dist) * strength * dt * 60
+
+        # Clamp velocity
+        self.vx = max(-18, min(18, self.vx))
+        self.vy = max(-18, min(30, self.vy))
 
         self.x += self.vx * dt * 60
         self.y += self.vy * dt * 60
 
         # Check if collected
-        if dist < 20:
+        if dist < 15:
             self.collected = True
             return False
 
-        return self.y < SCREEN_HEIGHT + 20
+        return self.y < SCREEN_HEIGHT + 30
 
     def draw(self, surface: pygame.Surface) -> None:
         cx, cy = int(self.x), int(self.y)
-        # Small yellow square with black outline
-        pygame.draw.rect(surface, COLOR_YELLOW, (cx - ORB_SIZE//2, cy - ORB_SIZE//2, ORB_SIZE, ORB_SIZE))
-        pygame.draw.rect(surface, COLOR_BLACK, (cx - ORB_SIZE//2, cy - ORB_SIZE//2, ORB_SIZE, ORB_SIZE), 1)
+        # Small yellow circle with black outline
+        pygame.draw.circle(surface, COLOR_YELLOW, (cx, cy), ORB_SIZE)
+        pygame.draw.circle(surface, COLOR_BLACK, (cx, cy), ORB_SIZE, 1)
+        # Inner highlight
+        pygame.draw.circle(surface, (255, 255, 200), (cx - 1, cy - 1), ORB_SIZE // 2)
 
 class OrbManager:
     """Manages all experience orbs and currency."""
