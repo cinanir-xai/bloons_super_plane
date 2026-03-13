@@ -3,25 +3,30 @@
 import pygame
 from game.constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, COLOR_BLACK, COLOR_WHITE,
-    COLOR_YELLOW, COLOR_RED, COLOR_GREEN, UPGRADE_DART_SPEED_BASE_COST,
-    UPGRADE_DART_SPEED_COST_MULTIPLIER
+    COLOR_YELLOW, COLOR_RED, COLOR_GREEN, COLOR_CYAN,
+    UPGRADE_DART_SPEED_BASE_COST, UPGRADE_DART_SPEED_COST_MULTIPLIER,
+    LASER_BASE_COST, LASER_COST_MULTIPLIER
 )
 
 class EndScreen:
     """End-of-level screen showing orbs collected, upgrades, and next level option."""
     
     def __init__(self, orbs_collected: int, level_num: int, has_next: bool, 
-                 total_orbs: int = 0, dart_speed_level: int = 0):
+                 total_orbs: int = 0, dart_speed_level: int = 0, laser_level: int = 0):
         self.orbs_collected = orbs_collected
         self.level_num = level_num
         self.has_next = has_next
         self.total_orbs = total_orbs
         self.dart_speed_level = dart_speed_level
+        self.laser_level = laser_level
         self.selected_option = 0  # 0 = next level, 1 = quit
         
         # Upgrade state
         self.dart_speed_cost = int(UPGRADE_DART_SPEED_BASE_COST * (UPGRADE_DART_SPEED_COST_MULTIPLIER ** dart_speed_level))
         self.can_buy_dart_speed = self.total_orbs >= self.dart_speed_cost
+        
+        self.laser_cost = int(LASER_BASE_COST * (LASER_COST_MULTIPLIER ** laser_level))
+        self.can_buy_laser = self.total_orbs >= self.laser_cost
         
         # Upgrade button rects
         self.upgrade_y = 450
@@ -29,7 +34,7 @@ class EndScreen:
         self.upgrade_spacing = 90
         
     def handle_event(self, event: pygame.event.Event) -> str:
-        """Handle input. Returns 'next', 'quit', 'buy_dart', or 'none'."""
+        """Handle input. Returns 'next', 'quit', 'buy_dart', 'buy_laser', or 'none'."""
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                 if self.selected_option == 0:
@@ -50,6 +55,8 @@ class EndScreen:
                     if btn_y <= my <= btn_y + self.upgrade_size:
                         if i == 0 and self.can_buy_dart_speed:
                             return 'buy_dart'
+                        elif i == 1 and self.can_buy_laser:
+                            return 'buy_laser'
                         return 'none'
             
             # Check next/quit buttons
@@ -98,7 +105,7 @@ class EndScreen:
         # 6 Upgrade buttons
         upgrade_names = [
             "Dart Speed +20%",
-            "Locked",
+            "Laser Beam" if self.laser_level == 0 else f"Laser Lv.{self.laser_level}",
             "Locked",
             "Locked",
             "Locked",
@@ -106,7 +113,7 @@ class EndScreen:
         ]
         upgrade_icons = [
             self._draw_dart_icon,
-            self._draw_locked_icon,
+            self._draw_laser_icon,
             self._draw_locked_icon,
             self._draw_locked_icon,
             self._draw_locked_icon,
@@ -123,6 +130,11 @@ class EndScreen:
                     btn_color = (80, 80, 120)
                 else:
                     btn_color = (60, 60, 80)
+            elif i == 1:
+                if self.can_buy_laser:
+                    btn_color = (80, 80, 120)
+                else:
+                    btn_color = (60, 60, 80)
             else:
                 btn_color = (50, 50, 50)
             
@@ -132,10 +144,12 @@ class EndScreen:
             # Draw icon
             if i == 0:
                 self._draw_dart_icon(surface, btn_x + self.upgrade_size // 2, btn_y + self.upgrade_size // 2)
+            elif i == 1:
+                self._draw_laser_icon(surface, btn_x + self.upgrade_size // 2, btn_y + self.upgrade_size // 2)
             else:
                 self._draw_locked_icon(surface, btn_x + self.upgrade_size // 2, btn_y + self.upgrade_size // 2)
             
-            # Draw cost for first upgrade
+            # Draw cost for upgrades
             if i == 0:
                 cost_text = font_tiny.render(f"{self.dart_speed_cost} orbs", True, 
                                             COLOR_YELLOW if self.can_buy_dart_speed else (100, 100, 100))
@@ -143,6 +157,14 @@ class EndScreen:
                 
                 # Level indicator
                 level_text = font_tiny.render(f"Lv.{self.dart_speed_level}", True, COLOR_WHITE)
+                surface.blit(level_text, (btn_x + 5, btn_y + self.upgrade_size + 20))
+            elif i == 1:
+                cost_text = font_tiny.render(f"{self.laser_cost} orbs", True, 
+                                            COLOR_YELLOW if self.can_buy_laser else (100, 100, 100))
+                surface.blit(cost_text, (btn_x + 5, btn_y + self.upgrade_size + 5))
+                
+                # Level indicator
+                level_text = font_tiny.render(f"Lv.{self.laser_level}", True, COLOR_WHITE)
                 surface.blit(level_text, (btn_x + 5, btn_y + self.upgrade_size + 20))
         
         # Next/Quit buttons
@@ -196,6 +218,15 @@ class EndScreen:
             (cx - 8, cy)
         ], 1)
     
+    def _draw_laser_icon(self, surface: pygame.Surface, cx: int, cy: int) -> None:
+        """Draw a laser icon."""
+        # Simple laser shape
+        pygame.draw.rect(surface, COLOR_CYAN, (cx - 2, cy - 20, 4, 40))
+        pygame.draw.rect(surface, COLOR_WHITE, (cx - 1, cy - 20, 2, 40))
+        # Glow
+        pygame.draw.circle(surface, COLOR_CYAN, (cx, cy), 8)
+        pygame.draw.circle(surface, COLOR_WHITE, (cx, cy), 4)
+
     def _draw_locked_icon(self, surface: pygame.Surface, cx: int, cy: int) -> None:
         """Draw a locked padlock icon."""
         # Lock body

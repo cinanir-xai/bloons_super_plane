@@ -71,7 +71,10 @@ class Game:
         self.end_screen = EndScreen(
             orbs_collected=orbs_this_level,
             level_num=self.level_manager.current_level_num,
-            has_next=self.level_manager.has_next_level()
+            has_next=self.level_manager.has_next_level(),
+            total_orbs=self.orb_manager.total_orbs,
+            dart_speed_level=self.player.dart_manager.dart_speed_level if hasattr(self.player.dart_manager, 'dart_speed_level') else 0,
+            laser_level=self.player.laser_level
         )
         pygame.mouse.set_visible(True)
 
@@ -105,6 +108,12 @@ class Game:
             # Load next level
             next_level = self.level_manager.get_next_level_num()
             self._load_level(next_level)
+        elif result == 'buy_laser':
+            if self.orb_manager.total_orbs >= self.end_screen.laser_cost:
+                self.orb_manager.total_orbs -= self.end_screen.laser_cost
+                self.player.upgrade_laser()
+                # Refresh end screen
+                self._on_level_complete()
         elif result == 'quit':
             self.running = False
 
@@ -146,6 +155,30 @@ class Game:
                         self.level_manager.balloon_popped()
                     
                     break
+        
+        # Check laser collisions
+        if self.player.has_laser and self.player.laser and self.player.laser.active:
+            from .constants import LASER_POP_DELAY
+            laser = self.player.laser
+            for balloon in self.balloon_manager.balloons[:]:
+                if not balloon.popped and abs(balloon.x - laser.x) < balloon.radius + 5:
+                    if balloon.y < laser.y_start: # Laser shoots up
+                        b_id = id(balloon)
+                        if b_id not in laser.pop_timers:
+                            laser.pop_timers[b_id] = 0
+                        
+                        laser.pop_timers[b_id] += dt * 1000
+                        
+                        # Visual effect for laser hitting balloon
+                        laser.emit_hit_particles(self.screen, balloon.y)
+                        
+                        if laser.pop_timers[b_id] >= LASER_POP_DELAY:
+                            will_pop = balloon.tier >= 4
+                            self.balloon_manager.pop_balloon(balloon, balloon.x, balloon.y)
+                            if will_pop:
+                                self.level_manager.balloon_popped()
+                            # Reset timer for this balloon (it might become a lower tier balloon)
+                            laser.pop_timers[b_id] = 0
         
         # Check if level complete (all balloons popped or off-screen)
         remaining = self.balloon_manager.get_remaining_count()

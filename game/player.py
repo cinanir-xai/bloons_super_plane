@@ -7,10 +7,12 @@ from dataclasses import dataclass
 from .constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, PLAYER_SPEED, PLAYER_WIDTH, PLAYER_HEIGHT,
     DART_COOLDOWN, DART_OFFSET_X,
-    COLOR_RED, COLOR_RED_DARK, COLOR_WHITE, COLOR_CYAN, COLOR_BLACK
+    COLOR_RED, COLOR_RED_DARK, COLOR_WHITE, COLOR_CYAN, COLOR_BLACK,
+    LASER_BASE_COOLDOWN, LASER_BASE_DURATION, LASER_UPGRADE_COOLDOWN_REDUCTION,
+    LASER_UPGRADE_DURATION_REDUCTION
 )
 from .effects import EngineGlow, MuzzleFlash
-from .projectiles import DartManager
+from .projectiles import DartManager, Laser
 
 
 @dataclass
@@ -27,6 +29,11 @@ class Player:
     muzzle_flash_left: MuzzleFlash
     muzzle_flash_right: MuzzleFlash
     shoot_timer: float
+    
+    # Laser state
+    has_laser: bool
+    laser_level: int
+    laser: Laser
 
     def __init__(self, x: float, y: float):
         self.x = x
@@ -40,6 +47,29 @@ class Player:
         self.muzzle_flash_left = MuzzleFlash()
         self.muzzle_flash_right = MuzzleFlash()
         self.shoot_timer = 0.0
+        
+        # Laser initialization
+        self.has_laser = False
+        self.laser_level = 0
+        self.laser = None
+
+    def upgrade_laser(self) -> None:
+        """Upgrade or buy laser."""
+        if not self.has_laser:
+            self.has_laser = True
+            self.laser_level = 1
+        else:
+            self.laser_level += 1
+        
+        # Recalculate laser stats
+        cooldown = LASER_BASE_COOLDOWN * ((1 - LASER_UPGRADE_COOLDOWN_REDUCTION) ** (self.laser_level - 1))
+        duration = LASER_BASE_DURATION * ((1 - LASER_UPGRADE_DURATION_REDUCTION) ** (self.laser_level - 1))
+        
+        if self.laser is None:
+            self.laser = Laser(self.x, self.y - self.height // 2, cooldown, duration)
+        else:
+            self.laser.cooldown = cooldown
+            self.laser.duration = duration
 
     def handle_mouse(self, pos: Tuple[int, int]) -> None:
         self.target_x = pos[0]
@@ -65,6 +95,9 @@ class Player:
             self.shoot()
             self.shoot_timer = DART_COOLDOWN
 
+        if self.has_laser and self.laser:
+            self.laser.update(self.x, self.y - self.height // 2, dt)
+
         self.dart_manager.update(dt)
 
     def shoot(self) -> None:
@@ -77,6 +110,10 @@ class Player:
         self.muzzle_flash_right.trigger(rx, y)
 
     def draw(self, surface: pygame.Surface) -> None:
+        # 0. Laser
+        if self.has_laser and self.laser:
+            self.laser.draw(surface)
+
         # 1. Darts
         self.dart_manager.draw(surface)
         
