@@ -8,18 +8,22 @@ from dataclasses import dataclass, field
 
 from .constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, BALLOON_SPEED,
-    BALLOON_SPAWN_DELAY, BALLOON_WAVE_DELAY,
+    BALLOON_SPAWN_DELAY, BALLOON_WAVE_DELAY, BALLOON_BASE_RADIUS,
     COLOR_RED, COLOR_BLUE, COLOR_GREEN, COLOR_YELLOW, COLOR_PINK,
     COLOR_WHITE, COLOR_BLACK, PARTICLE_SIZE
 )
 from .effects import ParticleSystem
 
+from .orbs import OrbManager
 
 # Balloon color progression: Pink (tier 0, largest) -> Yellow -> Green -> Blue -> Red (tier 4, smallest)
-# When shot: Pink -> Yellow -> Green -> Blue -> Red (popped)
 BALLOON_COLORS = [COLOR_PINK, COLOR_YELLOW, COLOR_GREEN, COLOR_BLUE, COLOR_RED]
-BALLOON_SIZES = [48, 40, 32, 24, 16]  # Radius for each tier (largest to smallest)
 
+def get_balloon_radius(tier: int) -> float:
+    """Calculate radius for a tier. Red (4) is base, each tier up +5%."""
+    # tiers: 0=pink, 1=yellow, 2=green, 3=blue, 4=red
+    steps_above_red = 4 - tier
+    return BALLOON_BASE_RADIUS * (1.05 ** steps_above_red)
 
 @dataclass
 class Balloon:
@@ -28,13 +32,13 @@ class Balloon:
     y: float
     tier: int  # 0=pink (largest), 4=red (smallest)
     speed: float
-    radius: float
-    color: Tuple[int, int, int]
+    radius: float = 0.0
+    color: Tuple[int, int, int] = (0,0,0)
     popped: bool = False
     pop_animation: float = 0.0
 
     def __post_init__(self):
-        self.radius = BALLOON_SIZES[self.tier]
+        self.radius = get_balloon_radius(self.tier)
         self.color = BALLOON_COLORS[self.tier]
 
     def take_damage(self) -> bool:
@@ -43,7 +47,7 @@ class Balloon:
         if self.tier >= len(BALLOON_COLORS):
             self.popped = True
             return True
-        self.radius = BALLOON_SIZES[self.tier]
+        self.radius = get_balloon_radius(self.tier)
         self.color = BALLOON_COLORS[self.tier]
         return False
 
@@ -103,9 +107,10 @@ class Balloon:
 class BalloonManager:
     """Manages all balloons and spawning patterns."""
     
-    def __init__(self):
+    def __init__(self, orb_manager: OrbManager):
         self.balloons: List[Balloon] = []
         self.particle_system = ParticleSystem()
+        self.orb_manager = orb_manager
         
         # Spawning state
         self.spawn_timer = 0.0
@@ -133,9 +138,7 @@ class BalloonManager:
                 x=x,
                 y=-30,  # Start above screen
                 tier=tier,
-                speed=BALLOON_SPEED,
-                radius=BALLOON_SIZES[tier],
-                color=BALLOON_COLORS[tier]
+                speed=BALLOON_SPEED
             )
             self.balloons.append(balloon)
 
@@ -179,10 +182,13 @@ class BalloonManager:
                     self._start_next_wave()
 
     def pop_balloon(self, balloon: Balloon, x: float, y: float) -> None:
-        """Pop a balloon with animation and particles."""
+        """Pop a balloon with animation and particles, and spawn orbs."""
         # Emit particles
         self.particle_system.emit(x, y, balloon.color, count=12, speed=4.0, size=PARTICLE_SIZE)
         
+        # Spawn orbs (2 per layer popped)
+        self.orb_manager.spawn_orbs(x, y, count=2)
+
         # Downgrade or remove
         if not balloon.take_damage():
             # Balloon downgraded, not fully popped

@@ -12,6 +12,7 @@ from .background import Background
 from .player import Player
 from .effects import Vignette
 from .enemies import BalloonManager
+from .orbs import OrbManager
 
 
 class Game:
@@ -28,7 +29,8 @@ class Game:
         self.background = Background()
         self.player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 120)
         self.vignette = Vignette(SCREEN_WIDTH, SCREEN_HEIGHT)
-        self.balloon_manager = BalloonManager()
+        self.orb_manager = OrbManager()
+        self.balloon_manager = BalloonManager(self.orb_manager)
         
         # State
         self.running = True
@@ -63,6 +65,9 @@ class Game:
         # Update balloons
         self.balloon_manager.update(dt)
         
+        # Update orbs with magnet effect towards player
+        self.orb_manager.update(dt, self.player.x, self.player.y)
+        
         # Check dart collisions with balloons
         darts = self.player.dart_manager.get_darts()
         for dart in darts[:]:
@@ -78,15 +83,17 @@ class Game:
         from .projectiles import Dart
         from .enemies import Balloon
         if isinstance(dart, Dart) and isinstance(balloon, Balloon):
+            if balloon.popped: return False
             dx = dart.x - balloon.x
             dy = dart.y - balloon.y
             dist = (dx * dx + dy * dy) ** 0.5
-            return dist < balloon.radius + 3
+            return dist < balloon.radius + 5
         return False
 
     def draw(self) -> None:
         """Draw everything with clean retro style."""
         self.background.draw(self.screen)
+        self.orb_manager.draw(self.screen)
         self.balloon_manager.draw(self.screen)
         self.player.draw(self.screen)
         self.vignette.draw(self.screen)

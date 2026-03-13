@@ -68,24 +68,31 @@ class Background:
             self.clouds.append(Cloud(
                 x=random.randint(0, SCREEN_WIDTH),
                 y=random.randint(0, SCREEN_HEIGHT),
-                width=random.randint(60, 100),
-                height=random.randint(30, 50),
+                width=random.randint(80, 120),
+                height=random.randint(40, 60),
                 speed=random.uniform(0.5, 1.2)
             ))
         
         # Trees
         for _ in range(TREE_COUNT):
-            x = random.randint(20, SCREEN_WIDTH - 20)
-            # Avoid river
-            while self.river_x - 40 < x < self.river_x + RIVER_WIDTH + 40:
-                x = random.randint(20, SCREEN_WIDTH - 20)
-            self.trees.append(Tree(x=x, y=random.randint(0, SCREEN_HEIGHT), size=30))
+            x = self._get_valid_tree_x()
+            self.trees.append(Tree(x=x, y=random.randint(0, SCREEN_HEIGHT), size=40))
+
+    def _get_valid_tree_x(self) -> int:
+        """Get an X coordinate that is not on the river."""
+        while True:
+            x = random.randint(40, SCREEN_WIDTH - 40)
+            # Avoid river + banks
+            if x < self.river_x - 40 or x > self.river_x + RIVER_WIDTH + 40:
+                return x
 
     def update(self, dt: float) -> None:
         for cloud in self.clouds:
             cloud.update(dt)
         for tree in self.trees:
             tree.update(dt)
+            if tree.y < -tree.size + 10: # Just respawned or wrapped
+                tree.x = self._get_valid_tree_x()
 
     def draw(self, surface: pygame.Surface) -> None:
         # 1. Base Grass
