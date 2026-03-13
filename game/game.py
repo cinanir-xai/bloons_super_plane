@@ -74,7 +74,8 @@ class Game:
             has_next=self.level_manager.has_next_level(),
             total_orbs=self.orb_manager.total_orbs,
             dart_speed_level=self.player.dart_manager.dart_speed_level if hasattr(self.player.dart_manager, 'dart_speed_level') else 0,
-            laser_level=self.player.laser_level
+            laser_level=self.player.laser_level,
+            missile_level=self.player.missile_level
         )
         pygame.mouse.set_visible(True)
 
@@ -112,6 +113,21 @@ class Game:
             if self.orb_manager.total_orbs >= self.end_screen.laser_cost:
                 self.orb_manager.total_orbs -= self.end_screen.laser_cost
                 self.player.upgrade_laser()
+                # Refresh end screen
+                self._on_level_complete()
+        elif result == 'buy_missile':
+            if self.orb_manager.total_orbs >= self.end_screen.missile_cost:
+                self.orb_manager.total_orbs -= self.end_screen.missile_cost
+                self.player.upgrade_missile()
+                # Refresh end screen
+                self._on_level_complete()
+        elif result == 'buy_dart':
+            if self.orb_manager.total_orbs >= self.end_screen.dart_speed_cost:
+                self.orb_manager.total_orbs -= self.end_screen.dart_speed_cost
+                # Update dart speed level (assuming it's on dart_manager)
+                if not hasattr(self.player.dart_manager, 'dart_speed_level'):
+                    self.player.dart_manager.dart_speed_level = 0
+                self.player.dart_manager.dart_speed_level += 1
                 # Refresh end screen
                 self._on_level_complete()
         elif result == 'quit':
@@ -179,6 +195,36 @@ class Game:
                                 self.level_manager.balloon_popped()
                             # Reset timer for this balloon (it might become a lower tier balloon)
                             laser.pop_timers[b_id] = 0
+        
+        # Check missile collisions
+        if self.player.has_missile:
+            missile_manager = self.player.missile_manager
+            for missile in missile_manager.missiles[:]:
+                for balloon in self.balloon_manager.balloons[:]:
+                    if not balloon.popped:
+                        dx = missile.x - balloon.x
+                        dy = missile.y - balloon.y
+                        dist = (dx * dx + dy * dy) ** 0.5
+                        if dist < balloon.radius + 10:
+                            # Explode!
+                            missile_manager.trigger_explosion(missile.x, missile.y, missile.aoe_radius)
+                            
+                            # AoE damage
+                            for b in self.balloon_manager.balloons[:]:
+                                if not b.popped:
+                                    bdx = missile.x - b.x
+                                    bdy = missile.y - b.y
+                                    bdist = (bdx * bdx + bdy * bdy) ** 0.5
+                                    if bdist < missile.aoe_radius:
+                                        # Damage balloon
+                                        will_pop = b.tier >= 4
+                                        self.balloon_manager.pop_balloon(b, b.x, b.y)
+                                        if will_pop:
+                                            self.level_manager.balloon_popped()
+                            
+                            if missile in missile_manager.missiles:
+                                missile_manager.missiles.remove(missile)
+                            break
         
         # Check if level complete (all balloons popped or off-screen)
         remaining = self.balloon_manager.get_remaining_count()

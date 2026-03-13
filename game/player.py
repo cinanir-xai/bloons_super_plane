@@ -9,10 +9,11 @@ from .constants import (
     DART_COOLDOWN, DART_OFFSET_X,
     COLOR_RED, COLOR_RED_DARK, COLOR_WHITE, COLOR_CYAN, COLOR_BLACK,
     LASER_BASE_COOLDOWN, LASER_BASE_DURATION, LASER_UPGRADE_COOLDOWN_REDUCTION,
-    LASER_UPGRADE_DURATION_REDUCTION
+    LASER_UPGRADE_DURATION_REDUCTION,
+    MISSILE_COOLDOWN, MISSILE_BASE_AOE_RADIUS, MISSILE_UPGRADE_AOE_GROWTH
 )
 from .effects import EngineGlow, MuzzleFlash
-from .projectiles import DartManager, Laser
+from .projectiles import DartManager, Laser, MissileManager
 
 
 @dataclass
@@ -34,6 +35,12 @@ class Player:
     has_laser: bool
     laser_level: int
     laser: Laser
+    
+    # Missile state
+    has_missile: bool
+    missile_level: int
+    missile_manager: MissileManager
+    missile_timer: float
 
     def __init__(self, x: float, y: float):
         self.x = x
@@ -52,6 +59,12 @@ class Player:
         self.has_laser = False
         self.laser_level = 0
         self.laser = None
+        
+        # Missile initialization
+        self.has_missile = False
+        self.missile_level = 0
+        self.missile_manager = MissileManager()
+        self.missile_timer = 0.0
 
     def upgrade_laser(self) -> None:
         """Upgrade or buy laser."""
@@ -70,6 +83,14 @@ class Player:
         else:
             self.laser.cooldown = cooldown
             self.laser.duration = duration
+
+    def upgrade_missile(self) -> None:
+        """Upgrade or buy missiles."""
+        if not self.has_missile:
+            self.has_missile = True
+            self.missile_level = 1
+        else:
+            self.missile_level += 1
 
     def handle_mouse(self, pos: Tuple[int, int]) -> None:
         self.target_x = pos[0]
@@ -98,6 +119,13 @@ class Player:
         if self.has_laser and self.laser:
             self.laser.update(self.x, self.y - self.height // 2, dt)
 
+        if self.has_missile:
+            self.missile_timer -= dt * 1000
+            if self.missile_timer <= 0:
+                self.shoot_missiles()
+                self.missile_timer = MISSILE_COOLDOWN
+            self.missile_manager.update(dt)
+
         self.dart_manager.update(dt)
 
     def shoot(self) -> None:
@@ -109,7 +137,19 @@ class Player:
         self.muzzle_flash_left.trigger(lx, y)
         self.muzzle_flash_right.trigger(rx, y)
 
+    def shoot_missiles(self) -> None:
+        """Shoot missiles from wing tips."""
+        lx = self.x - self.width // 2
+        rx = self.x + self.width // 2
+        y = self.y
+        aoe_radius = MISSILE_BASE_AOE_RADIUS * (1 + MISSILE_UPGRADE_AOE_GROWTH * (self.missile_level - 1))
+        self.missile_manager.spawn(lx, y, rx, y, aoe_radius)
+
     def draw(self, surface: pygame.Surface) -> None:
+        # -1. Missiles
+        if self.has_missile:
+            self.missile_manager.draw(surface)
+
         # 0. Laser
         if self.has_laser and self.laser:
             self.laser.draw(surface)

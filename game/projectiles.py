@@ -6,9 +6,87 @@ from dataclasses import dataclass
 
 from .constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, DART_SPEED, DART_WIDTH, DART_HEIGHT,
-    DART_LIFETIME, COLOR_WHITE, COLOR_YELLOW, COLOR_CYAN, LASER_WIDTH
+    DART_LIFETIME, COLOR_WHITE, COLOR_YELLOW, COLOR_CYAN, LASER_WIDTH,
+    COLOR_RED, MISSILE_SPEED, MISSILE_WIDTH, MISSILE_HEIGHT
 )
-from .effects import DartTrail, ParticleSystem
+from .effects import DartTrail, ParticleSystem, MissileTrail, Explosion
+
+
+@dataclass
+class Missile:
+    """A white rocket with a red tip."""
+    x: float
+    y: float
+    vx: float
+    vy: float
+    aoe_radius: float
+    trail: MissileTrail
+
+    def update(self, dt: float) -> bool:
+        """Update missile position. Returns False if missile should be removed."""
+        self.x += self.vx * dt * 60
+        self.y += self.vy * dt * 60
+        
+        # Update trail
+        self.trail.add(self.x, self.y + MISSILE_HEIGHT // 2)
+        self.trail.update(dt)
+        
+        return -50 < self.x < SCREEN_WIDTH + 50 and -50 < self.y < SCREEN_HEIGHT + 50
+
+    def get_rect(self) -> pygame.Rect:
+        """Get collision rectangle."""
+        return pygame.Rect(self.x - MISSILE_WIDTH // 2, self.y - MISSILE_HEIGHT // 2,
+                          MISSILE_WIDTH, MISSILE_HEIGHT)
+
+    def draw(self, surface: pygame.Surface) -> None:
+        """Draw the missile with trail."""
+        # Draw trail first
+        self.trail.draw(surface)
+        
+        # White body
+        pygame.draw.rect(surface, COLOR_WHITE, 
+                        (self.x - MISSILE_WIDTH // 2, self.y - MISSILE_HEIGHT // 2, 
+                         MISSILE_WIDTH, MISSILE_HEIGHT))
+        # Red tip
+        pygame.draw.rect(surface, COLOR_RED,
+                        (self.x - MISSILE_WIDTH // 2, self.y - MISSILE_HEIGHT // 2,
+                         MISSILE_WIDTH, 8))
+        # Fins
+        pygame.draw.rect(surface, (150, 150, 150),
+                        (self.x - MISSILE_WIDTH // 2 - 4, self.y + MISSILE_HEIGHT // 2 - 6,
+                         4, 6))
+        pygame.draw.rect(surface, (150, 150, 150),
+                        (self.x + MISSILE_WIDTH // 2, self.y + MISSILE_HEIGHT // 2 - 6,
+                         4, 6))
+
+
+class MissileManager:
+    """Manages all missile projectiles and explosions."""
+    
+    def __init__(self):
+        self.missiles: List[Missile] = []
+        self.explosions: List[Explosion] = []
+
+    def spawn(self, x1: float, y1: float, x2: float, y2: float, aoe_radius: float) -> None:
+        """Spawn missiles from wing tips."""
+        self.missiles.append(Missile(x1, y1, 0, -MISSILE_SPEED, aoe_radius, MissileTrail()))
+        self.missiles.append(Missile(x2, y2, 0, -MISSILE_SPEED, aoe_radius, MissileTrail()))
+
+    def update(self, dt: float) -> None:
+        """Update all missiles and explosions."""
+        self.missiles = [m for m in self.missiles if m.update(dt)]
+        self.explosions = [e for e in self.explosions if e.update(dt)]
+
+    def draw(self, surface: pygame.Surface) -> None:
+        """Draw all missiles and explosions."""
+        for missile in self.missiles:
+            missile.draw(surface)
+        for explosion in self.explosions:
+            explosion.draw(surface)
+
+    def trigger_explosion(self, x: float, y: float, radius: float) -> None:
+        """Trigger an explosion at a position."""
+        self.explosions.append(Explosion(x, y, radius))
 
 
 @dataclass

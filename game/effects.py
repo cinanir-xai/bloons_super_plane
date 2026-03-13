@@ -158,6 +158,95 @@ class DartTrail:
             particle.draw(surface)
 
 
+class MissileTrail:
+    """Smoke and fire trail for missiles."""
+    
+    def __init__(self):
+        self.particles: List[Particle] = []
+
+    def add(self, x: float, y: float) -> None:
+        # Fire
+        if random.random() < 0.5:
+            self.particles.append(Particle(
+                x=x + random.uniform(-2, 2),
+                y=y,
+                vx=random.uniform(-0.5, 0.5),
+                vy=random.uniform(1, 3),
+                size=random.uniform(3, 6),
+                color=random.choice([COLOR_ORANGE, COLOR_YELLOW]),
+                life=10,
+                max_life=10
+            ))
+        # Smoke
+        if random.random() < 0.4:
+            self.particles.append(Particle(
+                x=x + random.uniform(-3, 3),
+                y=y,
+                vx=random.uniform(-0.2, 0.2),
+                vy=random.uniform(0.5, 1.5),
+                size=random.uniform(4, 8),
+                color=(100, 100, 100), # Gray
+                life=20,
+                max_life=20
+            ))
+
+    def update(self, dt: float) -> None:
+        self.particles = [p for p in self.particles if p.update(dt)]
+
+    def draw(self, surface: pygame.Surface) -> None:
+        for particle in self.particles:
+            particle.draw(surface)
+
+
+class Explosion:
+    """Retro square explosion animation."""
+    
+    def __init__(self, x: float, y: float, radius: float):
+        self.x = x
+        self.y = y
+        self.radius = radius
+        self.particles: List[Particle] = []
+        self.active = True
+        self.timer = 0
+        self.duration = 40 # frames
+        
+        # Initial burst
+        for _ in range(30):
+            angle = random.uniform(0, 2 * math.pi)
+            dist = random.uniform(0, radius * 0.5)
+            speed = random.uniform(2, 6)
+            life = random.uniform(15, 35)
+            color = random.choice([COLOR_RED, COLOR_ORANGE, COLOR_YELLOW, COLOR_WHITE])
+            self.particles.append(Particle(
+                x=x + math.cos(angle) * dist,
+                y=y + math.sin(angle) * dist,
+                vx=math.cos(angle) * speed,
+                vy=math.sin(angle) * speed,
+                size=random.uniform(4, 10),
+                color=color,
+                life=life,
+                max_life=life
+            ))
+
+    def update(self, dt: float) -> bool:
+        self.timer += dt * 60
+        self.particles = [p for p in self.particles if p.update(dt)]
+        if self.timer > self.duration and not self.particles:
+            self.active = False
+        return self.active
+
+    def draw(self, surface: pygame.Surface) -> None:
+        # Draw a flash circle first
+        if self.timer < 5:
+            alpha = int(200 * (1 - self.timer / 5))
+            s = pygame.Surface((int(self.radius * 2), int(self.radius * 2)), pygame.SRCALPHA)
+            pygame.draw.circle(s, (255, 255, 255, alpha), (int(self.radius), int(self.radius)), int(self.radius))
+            surface.blit(s, (int(self.x - self.radius), int(self.y - self.radius)))
+            
+        for p in self.particles:
+            p.draw(surface)
+
+
 class AtmosphericHaze:
     """Not used in retro style to keep it clean."""
     def update(self, dt: float) -> None: pass
