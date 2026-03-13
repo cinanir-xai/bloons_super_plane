@@ -15,6 +15,7 @@ from .enemies import BalloonManager
 from .orbs import OrbManager
 from .level_manager import LevelManager
 from .end_screen import EndScreen
+from .menus import MainMenu, LevelSelect, Shop
 
 
 class Game:
@@ -27,8 +28,8 @@ class Game:
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.clock = pygame.time.Clock()
         
-        # Game state: "playing", "end_screen"
-        self.game_state = "playing"
+        # Game state: "main_menu", "level_select", "shop", "playing", "end_screen"
+        self.game_state = "main_menu"
         
         # Level management
         self.level_manager = LevelManager()
@@ -40,8 +41,10 @@ class Game:
         self.orb_manager = OrbManager()
         self.balloon_manager = BalloonManager(self.orb_manager)
         
-        # Load first level
-        self._load_level(1)
+        # Menu screens
+        self.main_menu = MainMenu()
+        self.level_select = LevelSelect()
+        self.shop = Shop()
         
         # End screen
         self.end_screen = None
@@ -50,24 +53,33 @@ class Game:
         self.running = True
         self.paused = False
         
-        # Hide mouse cursor
-        pygame.mouse.set_visible(False)
+        # Hide mouse cursor (only during gameplay)
+        pygame.mouse.set_visible(True)
         
         # Track orbs at level start
         self.level_start_orbs = 0
+        
+        # Player progress (persists across levels)
+        self.unlocked_levels = 1
+        
+        # Current level being played
+        self.current_level = 1
 
     def _load_level(self, level_num: int) -> None:
         """Load a specific level."""
         balloons = self.level_manager.load_level(level_num)
         self.balloon_manager.balloons = balloons
         self.level_start_orbs = self.orb_manager.total_orbs
-        self.game_state = "playing"
         pygame.mouse.set_visible(False)
 
     def _on_level_complete(self) -> None:
         """Handle level completion."""
         self.game_state = "end_screen"
         orbs_this_level = self.orb_manager.total_orbs - self.level_start_orbs
+        
+        # Update unlocked levels
+        self.unlocked_levels = max(self.unlocked_levels, self.level_manager.current_level_num + 1)
+        
         self.end_screen = EndScreen(
             orbs_collected=orbs_this_level,
             level_num=self.level_manager.current_level_num,
@@ -75,7 +87,8 @@ class Game:
             total_orbs=self.orb_manager.total_orbs,
             dart_speed_level=self.player.dart_manager.dart_speed_level if hasattr(self.player.dart_manager, 'dart_speed_level') else 0,
             laser_level=self.player.laser_level,
-            missile_level=self.player.missile_level
+            missile_level=self.player.missile_level,
+            boomerang_level=self.player.boomerang_level
         )
         pygame.mouse.set_visible(True)
 
@@ -85,7 +98,44 @@ class Game:
             if event.type == pygame.QUIT:
                 self.running = False
             
-            if self.game_state == "playing":
+            if self.game_state == "main_menu":
+                result = self.main_menu.handle_event(event)
+                if result == 'play':
+                    self.game_state = "level_select"
+                    pygame.mouse.set_visible(True)
+                elif result == 'shop':
+                    self._sync_shop_state()
+                    self.game_state = "shop"
+                    pygame.mouse.set_visible(True)
+                elif result == 'quit':
+                    self.running = False
+            
+            elif self.game_state == "level_select":
+                result = self.level_select.handle_event(event)
+                if result == 'back':
+                    self.game_state = "main_menu"
+                elif result.startswith('level_'):
+                    level_num = int(result.split('_')[1])
+                    self.current_level = level_num
+                    self._load_level(level_num)
+                    self.game_state = "playing"
+                    pygame.mouse.set_visible(False)
+            
+            elif self.game_state == "shop":
+                result = self.shop.handle_event(event)
+                if result == 'back':
+                    self.game_state = "main_menu"
+                    self._sync_player_upgrades()
+                elif result == 'buy_dart':
+                    self.shop.buy_upgrade('dart')
+                elif result == 'buy_laser':
+                    self.shop.buy_upgrade('laser')
+                elif result == 'buy_missile':
+                    self.shop.buy_upgrade('missile')
+                elif result == 'buy_boomerang':
+                    self.shop.buy_upgrade('boomerang')
+            
+            elif self.game_state == "playing":
                 self._handle_playing_events(event)
             elif self.game_state == "end_screen":
                 self._handle_end_screen_events(event)
@@ -94,7 +144,8 @@ class Game:
         """Handle events during gameplay."""
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                self.running = False
+                self.game_state = "main_menu"
+                pygame.mouse.set_visible(True)
             elif event.key == pygame.K_p:
                 self.paused = not self.paused
             elif event.key == pygame.K_e:
@@ -111,36 +162,62 @@ class Game:
         if result == 'next':
             # Load next level
             next_level = self.level_manager.get_next_level_num()
+            self.unlocked_levels = max(self.unlocked_levels, next_level)
+            self.current_level = next_level
             self._load_level(next_level)
+        elif result == 'menu':
+            # Go to main menu
+            self.game_state = "main_menu"
+            self._sync_shop_state()
+            pygame.mouse.set_visible(True)
         elif result == 'buy_laser':
             if self.orb_manager.total_orbs >= self.end_screen.laser_cost:
                 self.orb_manager.total_orbs -= self.end_screen.laser_cost
                 self.player.upgrade_laser()
-                # Refresh end screen
                 self._on_level_complete()
         elif result == 'buy_missile':
             if self.orb_manager.total_orbs >= self.end_screen.missile_cost:
                 self.orb_manager.total_orbs -= self.end_screen.missile_cost
                 self.player.upgrade_missile()
-                # Refresh end screen
                 self._on_level_complete()
         elif result == 'buy_boomerang':
             if self.orb_manager.total_orbs >= self.end_screen.boomerang_cost:
                 self.orb_manager.total_orbs -= self.end_screen.boomerang_cost
                 self.player.upgrade_boomerang()
-                # Refresh end screen
                 self._on_level_complete()
         elif result == 'buy_dart':
             if self.orb_manager.total_orbs >= self.end_screen.dart_speed_cost:
                 self.orb_manager.total_orbs -= self.end_screen.dart_speed_cost
-                # Update dart speed level (assuming it's on dart_manager)
                 if not hasattr(self.player.dart_manager, 'dart_speed_level'):
                     self.player.dart_manager.dart_speed_level = 0
                 self.player.dart_manager.dart_speed_level += 1
-                # Refresh end screen
                 self._on_level_complete()
-        elif result == 'quit':
-            self.running = False
+
+    def _sync_shop_state(self) -> None:
+        """Sync shop state with player progress."""
+        self.shop = Shop(
+            total_orbs=self.orb_manager.total_orbs,
+            dart_speed_level=self.player.dart_manager.dart_speed_level if hasattr(self.player.dart_manager, 'dart_speed_level') else 0,
+            laser_level=self.player.laser_level,
+            missile_level=self.player.missile_level,
+            boomerang_level=self.player.boomerang_level
+        )
+
+    def _sync_player_upgrades(self) -> None:
+        """Sync player upgrades from shop."""
+        self.orb_manager.total_orbs = self.shop.total_orbs
+        # Apply any new upgrades
+        while self.player.laser_level < self.shop.laser_level:
+            self.player.upgrade_laser()
+        while self.player.missile_level < self.shop.missile_level:
+            self.player.upgrade_missile()
+        while self.player.boomerang_level < self.shop.boomerang_level:
+            self.player.upgrade_boomerang()
+        if hasattr(self.player.dart_manager, 'dart_speed_level'):
+            while self.player.dart_manager.dart_speed_level < self.shop.dart_speed_level:
+                self.player.dart_manager.dart_speed_level += 1
+        else:
+            self.player.dart_manager.dart_speed_level = self.shop.dart_speed_level
 
     def update(self, dt: float) -> None:
         """Update game state."""
@@ -149,8 +226,7 @@ class Game:
         
         if self.game_state == "playing":
             self._update_playing(dt)
-        elif self.game_state == "end_screen":
-            pass  # End screen doesn't need update
+        # Menu states (main_menu, level_select, shop, end_screen) don't need update
 
     def _update_playing(self, dt: float) -> None:
         """Update gameplay."""
@@ -275,7 +351,15 @@ class Game:
 
     def draw(self) -> None:
         """Draw everything based on current state."""
-        if self.game_state == "playing":
+        if self.game_state == "main_menu":
+            self.main_menu.draw(self.screen)
+        elif self.game_state == "level_select":
+            # Update level select with current unlock progress
+            self.level_select.unlocked_levels = self.unlocked_levels
+            self.level_select.draw(self.screen)
+        elif self.game_state == "shop":
+            self.shop.draw(self.screen)
+        elif self.game_state == "playing":
             self._draw_playing()
         elif self.game_state == "end_screen":
             self.end_screen.draw(self.screen)

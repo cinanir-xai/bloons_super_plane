@@ -49,13 +49,13 @@ class EndScreen:
         self.upgrade_start_y = 350
         
     def handle_event(self, event: pygame.event.Event) -> str:
-        """Handle input. Returns 'next', 'quit', 'buy_dart', 'buy_laser', 'buy_missile', 'buy_boomerang', or 'none'."""
+        """Handle input. Returns 'next', 'menu', 'quit', 'buy_dart', 'buy_laser', 'buy_missile', 'buy_boomerang', or 'none'."""
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                 if self.selected_option == 0:
-                    return 'next' if self.has_next else 'quit'
+                    return 'next' if self.has_next else 'menu'
                 else:
-                    return 'quit'
+                    return 'menu'
             elif event.key == pygame.K_UP or event.key == pygame.K_DOWN:
                 self.selected_option = 1 - self.selected_option
         
@@ -81,14 +81,14 @@ class EndScreen:
                             return 'buy_boomerang'
                         return 'none'
             
-            # Check next/quit buttons
+            # Check next/menu buttons
             btn_x = SCREEN_WIDTH // 2 - 100
             btn_y = self.upgrade_start_y + self.upgrade_rows * self.upgrade_spacing_y + 20
             if btn_x <= mx <= btn_x + 200:
                 if btn_y <= my <= btn_y + 50:
-                    return 'next' if self.has_next else 'quit'
+                    return 'next' if self.has_next else 'menu'
                 elif btn_y + 60 <= my <= btn_y + 110:
-                    return 'quit'
+                    return 'menu'
         
         return 'none'
     
@@ -181,13 +181,13 @@ class EndScreen:
             surface.blit(next_text, text_rect)
             btn_y += 60
         
-        # Quit button
-        quit_color = COLOR_RED if self.selected_option == 1 else (100, 100, 100)
-        pygame.draw.rect(surface, quit_color, (btn_x, btn_y, btn_width, btn_height))
+        # Main Menu button
+        menu_color = COLOR_CYAN if self.selected_option == 1 else (100, 100, 100)
+        pygame.draw.rect(surface, menu_color, (btn_x, btn_y, btn_width, btn_height))
         pygame.draw.rect(surface, COLOR_BLACK, (btn_x, btn_y, btn_width, btn_height), 3)
-        quit_text = font_medium.render("QUIT", True, COLOR_WHITE)
-        text_rect = quit_text.get_rect(center=(SCREEN_WIDTH // 2, btn_y + 25))
-        surface.blit(quit_text, text_rect)
+        menu_text = font_medium.render("MAIN MENU", True, COLOR_BLACK)
+        text_rect = menu_text.get_rect(center=(SCREEN_WIDTH // 2, btn_y + 25))
+        surface.blit(menu_text, text_rect)
         
         # Instructions
         instr = font_small.render("Click upgrade to buy | Arrow keys + ENTER for navigation", True, (150, 150, 150))
