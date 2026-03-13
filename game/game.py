@@ -12,29 +12,29 @@ from .background import Background
 from .player import Player
 
 
+from .effects import Vignette
+
 class Game:
-    """Main game class."""
+    """Main game class with retro visuals."""
     
     def __init__(self):
         pygame.init()
-        pygame.display.set_caption("Sky Defender - Vertical Shooter")
+        pygame.display.set_caption("SKY DEFENDER - RETRO")
         
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.clock = pygame.time.Clock()
         
         # Create game objects
         self.background = Background()
-        self.player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 150)
+        self.player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 100)
+        self.vignette = Vignette(SCREEN_WIDTH, SCREEN_HEIGHT)
         
         # State
         self.running = True
         self.paused = False
         
-        # Mouse position
-        self.mouse_pos = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
-        
-        # Hide mouse cursor (we use a plane instead)
-        pygame.mouse.set_visible(True)
+        # Hide mouse cursor
+        pygame.mouse.set_visible(False)
 
     def handle_events(self) -> None:
         """Handle pygame events."""
@@ -49,47 +49,36 @@ class Game:
                     self.paused = not self.paused
             
             elif event.type == pygame.MOUSEMOTION:
-                self.mouse_pos = event.pos
-                self.player.handle_mouse(self.mouse_pos)
+                self.player.handle_mouse(event.pos)
 
     def update(self, dt: float) -> None:
         """Update game state."""
         if self.paused:
             return
         
-        # Update background
         self.background.update(dt)
-        
-        # Update player (includes shooting)
         self.player.update(dt)
 
     def draw(self) -> None:
-        """Draw everything to screen."""
-        # Clear screen
-        self.screen.fill(COLOR_BLACK)
-        
-        # Draw background
+        """Draw everything with clean retro style."""
         self.background.draw(self.screen)
-        
-        # Draw player (includes darts)
         self.player.draw(self.screen)
         
-        # Draw UI elements
-        self._draw_ui()
+        # Clean border
+        self.vignette.draw(self.screen)
         
-        # Update display
+        self._draw_ui()
         pygame.display.flip()
 
     def _draw_ui(self) -> None:
-        """Draw UI elements."""
-        # Draw a subtle border
-        pygame.draw.rect(self.screen, (100, 100, 100), (0, 0, SCREEN_WIDTH, SCREEN_HEIGHT), 2)
+        """Draw clean retro UI."""
+        font = pygame.font.Font(None, 24)
+        title = font.render("SKY DEFENDER", True, COLOR_WHITE)
+        self.screen.blit(title, (20, 20))
         
-        # Draw title (subtle)
-        font = pygame.font.Font(None, 36)
-        title = font.render("SKY DEFENDER", True, (255, 255, 255, 100))
-        title.set_alpha(100)
-        self.screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 20))
+        if self.paused:
+            pause_text = font.render("PAUSED", True, (255, 255, 0))
+            self.screen.blit(pause_text, (SCREEN_WIDTH // 2 - 40, SCREEN_HEIGHT // 2))
 
     def run(self) -> None:
         """Main game loop."""

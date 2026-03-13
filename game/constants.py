@@ -1,51 +1,47 @@
-"""Game constants and configuration values."""
+"""Game constants and configuration values - Retro Atari Inspired."""
 
 # Screen dimensions
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 1000
+SCREEN_WIDTH = 600  # Narrower for retro feel
+SCREEN_HEIGHT = 800
 FPS = 60
 
-# Colors
+# Retro Color Palette (Atari-style)
+COLOR_BG_GRASS = (34, 139, 34)
+COLOR_BG_RIVER = (0, 191, 255)
+COLOR_BG_ROAD = (105, 105, 105)
+COLOR_BG_SAND = (238, 232, 170)
+
 COLOR_BLACK = (0, 0, 0)
 COLOR_WHITE = (255, 255, 255)
-COLOR_RED = (200, 30, 40)
-COLOR_RED_DARK = (140, 20, 30)
-COLOR_RED_LIGHT = (255, 80, 90)
-COLOR_BLUE = (40, 100, 200)
-COLOR_BLUE_LIGHT = (80, 160, 255)
-COLOR_GREEN = (40, 180, 60)
-COLOR_GREEN_DARK = (25, 120, 40)
-COLOR_GREEN_LIGHT = (80, 220, 100)
-COLOR_YELLOW = (240, 220, 60)
-COLOR_BROWN = (140, 90, 50)
-COLOR_BROWN_DARK = (100, 60, 35)
-COLOR_GRAY = (150, 150, 150)
-COLOR_GRAY_LIGHT = (200, 200, 200)
-COLOR_GRAY_DARK = (80, 80, 80)
-COLOR_PURPLE = (150, 60, 200)
-COLOR_ORANGE = (255, 140, 40)
-COLOR_CLOUD = (255, 255, 255, 180)
+COLOR_RED = (255, 0, 0)
+COLOR_RED_DARK = (180, 0, 0)
+COLOR_BLUE = (0, 0, 255)
+COLOR_YELLOW = (255, 255, 0)
+COLOR_GREEN = (0, 255, 0)
+COLOR_PURPLE = (255, 0, 255)
+COLOR_CYAN = (0, 255, 255)
+COLOR_ORANGE = (255, 165, 0)
+COLOR_CLOUD = (255, 255, 255, 200)
 
 # Player settings
-PLAYER_SPEED = 8
-PLAYER_WIDTH = 60
-PLAYER_HEIGHT = 80
-DART_COOLDOWN = 80  # milliseconds between dart shots
-DART_OFFSET_X = 18  # offset from center for wing darts
+PLAYER_WIDTH = 48
+PLAYER_HEIGHT = 48
+PLAYER_SPEED = 0.15  # Lerp factor
+DART_COOLDOWN = 100  # milliseconds
+DART_OFFSET_X = 16
 
 # Dart settings
-DART_SPEED = 18
-DART_WIDTH = 8
-DART_HEIGHT = 20
-DART_LIFETIME = 2000  # milliseconds
+DART_SPEED = 12
+DART_WIDTH = 4
+DART_HEIGHT = 16
+DART_LIFETIME = 1500
 
 # Background settings
-CLOUD_COUNT = 20
-TREE_COUNT = 15
-RIVER_WIDTH = 80
-SCENERY_SPEED = 2  # background scroll speed
+CLOUD_COUNT = 8
+TREE_COUNT = 12
+RIVER_WIDTH = 100
+SCENERY_SPEED = 3
 
-# Visual effect settings
-TRAIL_LENGTH = 8
-EXPLOSION_DURATION = 300
-FLASH_DURATION = 50
+# Visual effects
+PARTICLE_SIZE = 4
+TRAIL_ALPHA = 150
