@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 
 from .constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, BALLOON_SPEED,
-    BALLOON_SPAWN_DELAY, BALLOON_WAVE_DELAY, BALLOON_BASE_RADIUS,
+    BALLOON_BASE_RADIUS,
     COLOR_RED, COLOR_BLUE, COLOR_GREEN, COLOR_YELLOW, COLOR_PINK,
     COLOR_WHITE, COLOR_BLACK, PARTICLE_SIZE
 )
@@ -105,81 +105,35 @@ class Balloon:
 
 
 class BalloonManager:
-    """Manages all balloons and spawning patterns."""
+    """Manages all balloons from levels."""
     
     def __init__(self, orb_manager: OrbManager):
         self.balloons: List[Balloon] = []
         self.particle_system = ParticleSystem()
         self.orb_manager = orb_manager
         
-        # Spawning state
-        self.spawn_timer = 0.0
-        self.wave_timer = 0.0
-        self.current_wave = 0  # 0=red, 1=blue, 2=green, 3=yellow, 4=pink
-        self.rows_spawned = 0
-        self.spawning = True
-        
-        # Wave order: red, blue, green, yellow, pink
-        self.wave_colors = [4, 3, 2, 1, 0]  # tier indices
-
-    def _spawn_row(self, tier: int) -> None:
-        """Spawn a row of 10 balloons at the top."""
-        num_balloons = 10
-        spacing = SCREEN_WIDTH / (num_balloons + 1)
-        start_x = spacing
-        
-        for i in range(num_balloons):
-            x = start_x + i * spacing
-            # Add slight random offset
-            x += random.uniform(-10, 10)
-            x = max(30, min(SCREEN_WIDTH - 30, x))
-            
-            balloon = Balloon(
-                x=x,
-                y=-30,  # Start above screen
-                tier=tier,
-                speed=BALLOON_SPEED
-            )
-            self.balloons.append(balloon)
-
-    def _start_next_wave(self) -> None:
-        """Start the next color wave."""
-        if self.current_wave < len(self.wave_colors):
-            self.rows_spawned = 0
-            self.spawn_timer = 0
-        else:
-            self.spawning = False
+        # Track off-screen balloons (for level progression)
+        self.off_screen_count = 0
 
     def update(self, dt: float) -> None:
-        """Update all balloons and spawning."""
-        # Update existing balloons
-        self.balloons = [b for b in self.balloons if b.update(dt)]
+        """Update all balloons. Handle off-screen balloons."""
+        new_balloons = []
+        for balloon in self.balloons:
+            if balloon.popped:
+                if balloon.update(dt):
+                    new_balloons.append(balloon)
+            else:
+                # Check if balloon went off screen (bottom)
+                if balloon.y > SCREEN_HEIGHT + balloon.radius:
+                    # Count as popped but no orbs
+                    self.off_screen_count += 1
+                    continue
+                if balloon.update(dt):
+                    new_balloons.append(balloon)
+        self.balloons = new_balloons
         
         # Update particles
         self.particle_system.update(dt)
-        
-        if not self.spawning:
-            return
-        
-        # Handle wave spawning
-        if self.current_wave < len(self.wave_colors):
-            tier = self.wave_colors[self.current_wave]
-            
-            # Spawn rows with delay
-            self.spawn_timer += dt * 1000
-            
-            if self.rows_spawned < 5:
-                if self.spawn_timer >= BALLOON_SPAWN_DELAY:
-                    self.spawn_timer = 0
-                    self._spawn_row(tier)
-                    self.rows_spawned += 1
-            else:
-                # Wait for wave delay
-                self.wave_timer += dt * 1000
-                if self.wave_timer >= BALLOON_WAVE_DELAY:
-                    self.wave_timer = 0
-                    self.current_wave += 1
-                    self._start_next_wave()
 
     def pop_balloon(self, balloon: Balloon, x: float, y: float) -> None:
         """Pop a balloon with animation and particles, and spawn orbs."""
@@ -193,6 +147,19 @@ class BalloonManager:
         if not balloon.take_damage():
             # Balloon downgraded, not fully popped
             pass
+
+    def pop_balloon_no_orbs(self, balloon: Balloon) -> None:
+        """Pop a balloon without spawning orbs (for off-screen)."""
+        self.particle_system.emit(balloon.x, balloon.y, balloon.color, count=6, speed=2.0, size=PARTICLE_SIZE)
+        balloon.take_damage()
+
+    def get_remaining_count(self) -> int:
+        """Get count of balloons still in play."""
+        return len([b for b in self.balloons if not b.popped])
+
+    def get_total_off_screen(self) -> int:
+        """Get count of balloons that went off screen."""
+        return self.off_screen_count
 
     def draw(self, surface: pygame.Surface) -> None:
         """Draw all balloons and particles."""

@@ -26,7 +26,7 @@ COLOR_CLOUD = (255, 255, 255, 200)
 PLAYER_WIDTH = 80
 PLAYER_HEIGHT = 80
 PLAYER_SPEED = 0.12  # Lerp factor
-DART_COOLDOWN = 80  # milliseconds
+DART_COOLDOWN = 96  # milliseconds (20% slower than original 80)
 DART_OFFSET_X = 24
 
 # Dart settings
@@ -37,17 +37,18 @@ DART_LIFETIME = 2000
 
 # Balloon settings
 BALLOON_SPEED = 1.8
-BALLOON_SPAWN_DELAY = 500  # ms between rows
-BALLOON_WAVE_DELAY = 3000  # ms between color waves
-# Sizes: Red is base (16), each tier up +5%
-# Red (4): 16, Blue (3): 16.8, Green (2): 17.6, Yellow (1): 18.5, Pink (0): 19.4
 BALLOON_BASE_RADIUS = 16
 
 # Orb settings
-ORB_SIZE = 4
+ORB_SIZE = 8  # Larger for visibility
 ORB_SPEED = 1.2
-ORB_MAGNET_RADIUS = 200
-ORB_MAGNET_STRENGTH = 8.0
+ORB_MAGNET_RADIUS = 300  # Larger magnet radius
+ORB_MAGNET_STRENGTH = 15.0  # Stronger magnet
+ORB_COLLECTION_RADIUS = 50  # Large collection hitbox
+
+# Upgrade settings
+UPGRADE_DART_SPEED_BASE_COST = 100
+UPGRADE_DART_SPEED_COST_MULTIPLIER = 1.5
 
 # Background settings
 CLOUD_COUNT = 12

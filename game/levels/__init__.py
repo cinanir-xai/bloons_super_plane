@@ -1,7 +1,7 @@
 """Levels package - Each level defines its own balloon spawning pattern."""
 
 def get_level(num: int):
-    """Get level module by number (1-5)."""
+    """Get level module by number (1-6)."""
     if num == 1:
         from . import level_1
         return level_1
@@ -17,8 +17,11 @@ def get_level(num: int):
     elif num == 5:
         from . import level_5
         return level_5
+    elif num == 6:
+        from . import level_6
+        return level_6
     from . import level_1
     return level_1
 
 def get_total_levels() -> int:
-    return 5
+    return 6

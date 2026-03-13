@@ -6,7 +6,7 @@ import sys
 from .constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, FPS,
     COLOR_BLACK, COLOR_WHITE, COLOR_RED, COLOR_BLUE, COLOR_GREEN, COLOR_YELLOW, COLOR_PINK,
-    BALLOON_SPEED, BALLOON_SPAWN_DELAY, BALLOON_WAVE_DELAY
+    BALLOON_SPEED
 )
 from .background import Background
 from .player import Player
@@ -147,7 +147,11 @@ class Game:
                     
                     break
         
-        # Check if level complete
+        # Check if level complete (all balloons popped or off-screen)
+        remaining = self.balloon_manager.get_remaining_count()
+        if remaining <= 0:
+            self.level_manager.level_complete = True
+        
         if self.level_manager.level_complete:
             self._on_level_complete()
 

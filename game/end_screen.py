@@ -3,25 +3,33 @@
 import pygame
 from game.constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, COLOR_BLACK, COLOR_WHITE,
-    COLOR_YELLOW, COLOR_RED, COLOR_GREEN
+    COLOR_YELLOW, COLOR_RED, COLOR_GREEN, UPGRADE_DART_SPEED_BASE_COST,
+    UPGRADE_DART_SPEED_COST_MULTIPLIER
 )
 
 class EndScreen:
-    """End-of-level screen showing orbs collected and next level option."""
+    """End-of-level screen showing orbs collected, upgrades, and next level option."""
     
-    def __init__(self, orbs_collected: int, level_num: int, has_next: bool):
+    def __init__(self, orbs_collected: int, level_num: int, has_next: bool, 
+                 total_orbs: int = 0, dart_speed_level: int = 0):
         self.orbs_collected = orbs_collected
         self.level_num = level_num
         self.has_next = has_next
+        self.total_orbs = total_orbs
+        self.dart_speed_level = dart_speed_level
         self.selected_option = 0  # 0 = next level, 1 = quit
         
-        # Button rects
-        self.button_y = SCREEN_HEIGHT - 150
-        self.button_height = 50
-        self.button_width = 200
+        # Upgrade state
+        self.dart_speed_cost = int(UPGRADE_DART_SPEED_BASE_COST * (UPGRADE_DART_SPEED_COST_MULTIPLIER ** dart_speed_level))
+        self.can_buy_dart_speed = self.total_orbs >= self.dart_speed_cost
+        
+        # Upgrade button rects
+        self.upgrade_y = 450
+        self.upgrade_size = 80
+        self.upgrade_spacing = 90
         
     def handle_event(self, event: pygame.event.Event) -> str:
-        """Handle input. Returns 'next', 'quit', or 'none'."""
+        """Handle input. Returns 'next', 'quit', 'buy_dart', or 'none'."""
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                 if self.selected_option == 0:
@@ -33,79 +41,168 @@ class EndScreen:
         
         elif event.type == pygame.MOUSEBUTTONDOWN:
             mx, my = event.pos
-            # Check button clicks
-            btn_x = SCREEN_WIDTH // 2 - self.button_width // 2
-            if btn_x <= mx <= btn_x + self.button_width:
-                if self.button_y <= my <= self.button_y + self.button_height:
+            
+            # Check upgrade button clicks
+            for i in range(6):
+                btn_x = 80 + i * self.upgrade_spacing
+                btn_y = self.upgrade_y
+                if btn_x <= mx <= btn_x + self.upgrade_size:
+                    if btn_y <= my <= btn_y + self.upgrade_size:
+                        if i == 0 and self.can_buy_dart_speed:
+                            return 'buy_dart'
+                        return 'none'
+            
+            # Check next/quit buttons
+            btn_x = SCREEN_WIDTH // 2 - 100
+            if btn_x <= mx <= btn_x + 200:
+                if self.upgrade_y + 120 <= my <= self.upgrade_y + 170:
                     return 'next' if self.has_next else 'quit'
-                elif self.button_y + 60 <= my <= self.button_y + 60 + self.button_height:
+                elif self.upgrade_y + 180 <= my <= self.upgrade_y + 230:
                     return 'quit'
-        
-        elif event.type == pygame.MOUSEMOTION:
-            mx, my = event.pos
-            btn_x = SCREEN_WIDTH // 2 - self.button_width // 2
-            if btn_x <= mx <= btn_x + self.button_width:
-                if self.button_y <= my <= self.button_y + self.button_height:
-                    self.selected_option = 0
-                elif self.button_y + 60 <= my <= self.button_y + 60 + self.button_height:
-                    self.selected_option = 1
         
         return 'none'
     
     def draw(self, surface: pygame.Surface) -> None:
-        """Draw the end screen."""
+        """Draw the end screen with upgrades."""
         # Clear with dark background
         surface.fill((20, 20, 30))
         
-        # Title
         font_large = pygame.font.Font(None, 72)
         font_medium = pygame.font.Font(None, 48)
-        font_small = pygame.font.Font(None, 36)
+        font_small = pygame.font.Font(None, 32)
+        font_tiny = pygame.font.Font(None, 24)
         
-        # "Level Complete" text
+        # Title
         title = font_large.render(f"LEVEL {self.level_num} COMPLETE!", True, COLOR_GREEN)
-        title_rect = title.get_rect(center=(SCREEN_WIDTH // 2, 200))
+        title_rect = title.get_rect(center=(SCREEN_WIDTH // 2, 80))
         surface.blit(title, title_rect)
         
-        # Orb count display
-        orb_y = 350
+        # Orb count display (top right)
+        orb_x = SCREEN_WIDTH - 150
+        orb_y = 40
+        pygame.draw.circle(surface, COLOR_YELLOW, (orb_x, orb_y), 20)
+        pygame.draw.circle(surface, COLOR_BLACK, (orb_x, orb_y), 20, 2)
+        pygame.draw.circle(surface, (255, 255, 220), (orb_x - 5, orb_y - 5), 8)
         
-        # Draw large yellow orb icon
-        pygame.draw.circle(surface, COLOR_YELLOW, (SCREEN_WIDTH // 2 - 80, orb_y), 30)
-        pygame.draw.circle(surface, COLOR_BLACK, (SCREEN_WIDTH // 2 - 80, orb_y), 30, 3)
-        pygame.draw.circle(surface, (255, 255, 200), (SCREEN_WIDTH // 2 - 85, orb_y - 5), 12)
+        orb_text = font_medium.render(f"x {self.total_orbs}", True, COLOR_YELLOW)
+        surface.blit(orb_text, (orb_x + 30, orb_y - 15))
         
-        # Orb count text
-        orb_text = font_large.render(f"x {self.orbs_collected}", True, COLOR_YELLOW)
-        surface.blit(orb_text, (SCREEN_WIDTH // 2 - 30, orb_y - 25))
+        # Orbs collected this level
+        orb_label = font_small.render(f"+{self.orbs_collected} this level", True, (200, 200, 200))
+        surface.blit(orb_label, (orb_x + 30, orb_y + 15))
         
-        # "Orbs Collected" label
-        label = font_small.render("ORBS COLLECTED", True, COLOR_WHITE)
-        label_rect = label.get_rect(center=(SCREEN_WIDTH // 2, orb_y + 60))
-        surface.blit(label, label_rect)
+        # Upgrade section
+        upgrade_title = font_medium.render("UPGRADES", True, COLOR_WHITE)
+        surface.blit(upgrade_title, (80, self.upgrade_y - 40))
         
-        # Buttons
-        btn_x = SCREEN_WIDTH // 2 - self.button_width // 2
+        # 6 Upgrade buttons
+        upgrade_names = [
+            "Dart Speed +20%",
+            "Locked",
+            "Locked",
+            "Locked",
+            "Locked",
+            "Locked"
+        ]
+        upgrade_icons = [
+            self._draw_dart_icon,
+            self._draw_locked_icon,
+            self._draw_locked_icon,
+            self._draw_locked_icon,
+            self._draw_locked_icon,
+            self._draw_locked_icon
+        ]
+        
+        for i in range(6):
+            btn_x = 80 + i * self.upgrade_spacing
+            btn_y = self.upgrade_y
+            
+            # Button background
+            if i == 0:
+                if self.can_buy_dart_speed:
+                    btn_color = (80, 80, 120)
+                else:
+                    btn_color = (60, 60, 80)
+            else:
+                btn_color = (50, 50, 50)
+            
+            pygame.draw.rect(surface, btn_color, (btn_x, btn_y, self.upgrade_size, self.upgrade_size))
+            pygame.draw.rect(surface, COLOR_BLACK, (btn_x, btn_y, self.upgrade_size, self.upgrade_size), 2)
+            
+            # Draw icon
+            if i == 0:
+                self._draw_dart_icon(surface, btn_x + self.upgrade_size // 2, btn_y + self.upgrade_size // 2)
+            else:
+                self._draw_locked_icon(surface, btn_x + self.upgrade_size // 2, btn_y + self.upgrade_size // 2)
+            
+            # Draw cost for first upgrade
+            if i == 0:
+                cost_text = font_tiny.render(f"{self.dart_speed_cost} orbs", True, 
+                                            COLOR_YELLOW if self.can_buy_dart_speed else (100, 100, 100))
+                surface.blit(cost_text, (btn_x + 5, btn_y + self.upgrade_size + 5))
+                
+                # Level indicator
+                level_text = font_tiny.render(f"Lv.{self.dart_speed_level}", True, COLOR_WHITE)
+                surface.blit(level_text, (btn_x + 5, btn_y + self.upgrade_size + 20))
+        
+        # Next/Quit buttons
+        btn_x = SCREEN_WIDTH // 2 - 100
+        btn_y = self.upgrade_y + 120
+        btn_width = 200
+        btn_height = 50
         
         # Next Level button
         if self.has_next:
             next_color = COLOR_YELLOW if self.selected_option == 0 else (100, 100, 100)
-            pygame.draw.rect(surface, next_color, (btn_x, self.button_y, self.button_width, self.button_height))
-            pygame.draw.rect(surface, COLOR_BLACK, (btn_x, self.button_y, self.button_width, self.button_height), 3)
+            pygame.draw.rect(surface, next_color, (btn_x, btn_y, btn_width, btn_height))
+            pygame.draw.rect(surface, COLOR_BLACK, (btn_x, btn_y, btn_width, btn_height), 3)
             next_text = font_medium.render("NEXT LEVEL", True, COLOR_BLACK)
-            text_rect = next_text.get_rect(center=(SCREEN_WIDTH // 2, self.button_y + 25))
+            text_rect = next_text.get_rect(center=(SCREEN_WIDTH // 2, btn_y + 25))
             surface.blit(next_text, text_rect)
+            btn_y += 60
         
         # Quit button
         quit_color = COLOR_RED if self.selected_option == 1 else (100, 100, 100)
-        quit_y = self.button_y + 60 if self.has_next else self.button_y
-        pygame.draw.rect(surface, quit_color, (btn_x, quit_y, self.button_width, self.button_height))
-        pygame.draw.rect(surface, COLOR_BLACK, (btn_x, quit_y, self.button_width, self.button_height), 3)
+        pygame.draw.rect(surface, quit_color, (btn_x, btn_y, btn_width, btn_height))
+        pygame.draw.rect(surface, COLOR_BLACK, (btn_x, btn_y, btn_width, btn_height), 3)
         quit_text = font_medium.render("QUIT", True, COLOR_WHITE)
-        text_rect = quit_text.get_rect(center=(SCREEN_WIDTH // 2, quit_y + 25))
+        text_rect = quit_text.get_rect(center=(SCREEN_WIDTH // 2, btn_y + 25))
         surface.blit(quit_text, text_rect)
         
         # Instructions
-        instr = font_small.render("Use arrow keys and ENTER, or click", True, (150, 150, 150))
-        instr_rect = instr.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 50))
+        instr = font_small.render("Click upgrade to buy | Arrow keys + ENTER for navigation", True, (150, 150, 150))
+        instr_rect = instr.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 30))
         surface.blit(instr, instr_rect)
+    
+    def _draw_dart_icon(self, surface: pygame.Surface, cx: int, cy: int) -> None:
+        """Draw a dart icon."""
+        # Simple dart shape
+        pygame.draw.polygon(surface, COLOR_WHITE, [
+            (cx, cy - 20),
+            (cx + 8, cy),
+            (cx + 3, cy),
+            (cx + 3, cy + 15),
+            (cx - 3, cy + 15),
+            (cx - 3, cy),
+            (cx - 8, cy)
+        ])
+        pygame.draw.polygon(surface, COLOR_BLACK, [
+            (cx, cy - 20),
+            (cx + 8, cy),
+            (cx + 3, cy),
+            (cx + 3, cy + 15),
+            (cx - 3, cy + 15),
+            (cx - 3, cy),
+            (cx - 8, cy)
+        ], 1)
+    
+    def _draw_locked_icon(self, surface: pygame.Surface, cx: int, cy: int) -> None:
+        """Draw a locked padlock icon."""
+        # Lock body
+        pygame.draw.rect(surface, (100, 100, 100), (cx - 12, cy - 5, 24, 20))
+        pygame.draw.rect(surface, COLOR_BLACK, (cx - 12, cy - 5, 24, 20), 1)
+        # Lock shackle
+        pygame.draw.arc(surface, (100, 100, 100), (cx - 10, cy - 20, 20, 20), 0, 3.14, 3)
+        pygame.draw.arc(surface, COLOR_BLACK, (cx - 10, cy - 20, 20, 20), 0, 3.14, 2)
+        # Keyhole
+        pygame.draw.circle(surface, COLOR_BLACK, (cx, cy + 5), 4)

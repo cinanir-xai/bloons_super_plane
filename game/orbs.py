@@ -8,7 +8,8 @@ from dataclasses import dataclass
 
 from .constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, COLOR_YELLOW, COLOR_BLACK,
-    ORB_SIZE, ORB_SPEED, ORB_MAGNET_RADIUS, ORB_MAGNET_STRENGTH
+    ORB_SIZE, ORB_SPEED, ORB_MAGNET_RADIUS, ORB_MAGNET_STRENGTH,
+    ORB_COLLECTION_RADIUS
 )
 
 @dataclass
@@ -43,8 +44,8 @@ class Orb:
         self.x += self.vx * dt * 60
         self.y += self.vy * dt * 60
 
-        # Check if collected
-        if dist < 15:
+        # Check if collected (larger hitbox)
+        if dist < ORB_COLLECTION_RADIUS:
             self.collected = True
             return False
 
@@ -52,11 +53,16 @@ class Orb:
 
     def draw(self, surface: pygame.Surface) -> None:
         cx, cy = int(self.x), int(self.y)
-        # Small yellow circle with black outline
+        # Larger yellow circle with gradient effect
+        # Outer glow
+        pygame.draw.circle(surface, (255, 200, 50), (cx, cy), ORB_SIZE + 2)
+        # Main orb
         pygame.draw.circle(surface, COLOR_YELLOW, (cx, cy), ORB_SIZE)
         pygame.draw.circle(surface, COLOR_BLACK, (cx, cy), ORB_SIZE, 1)
         # Inner highlight
-        pygame.draw.circle(surface, (255, 255, 200), (cx - 1, cy - 1), ORB_SIZE // 2)
+        pygame.draw.circle(surface, (255, 255, 220), (cx - 2, cy - 2), ORB_SIZE // 2)
+        # Center shine
+        pygame.draw.circle(surface, (255, 255, 255), (cx - 3, cy - 3), ORB_SIZE // 3)
 
 class OrbManager:
     """Manages all experience orbs and currency."""
