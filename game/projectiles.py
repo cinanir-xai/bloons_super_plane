@@ -12,7 +12,9 @@ from .constants import (
     BOOMERANG_SPEED, COLOR_BLACK,
     LIGHTNING_BASE_COOLDOWN, LIGHTNING_COOLDOWN_REDUCTION,
     LIGHTNING_BASE_ARCS, LIGHTNING_ARC_GROWTH,
-    LIGHTNING_STRIKE_COLOR, LIGHTNING_GLOW_COLOR
+    LIGHTNING_STRIKE_COLOR, LIGHTNING_GLOW_COLOR,
+    WINGMAN_MAX_SPEED, WINGMAN_MIN_SPEED, WINGMAN_TURN_RATE, WINGMAN_ORBIT_RADIUS,
+    WINGMAN_DART_COOLDOWN_MULTIPLIER
 )
 from .effects import DartTrail, ParticleSystem, MissileTrail, Explosion
 import math
@@ -332,6 +334,7 @@ class Dart:
     y: float
     vx: float
     vy: float
+    angle: float
     life: float
     trail: DartTrail
 
@@ -339,6 +342,8 @@ class Dart:
         """Update dart position. Returns False if dart should be removed."""
         self.x += self.vx * dt * 60
         self.y += self.vy * dt * 60
+        if self.vx != 0 or self.vy != 0:
+            self.angle = math.degrees(math.atan2(self.vy, self.vx)) + 90
         self.life -= dt * 1000
         
         # Update trail
@@ -357,51 +362,59 @@ class Dart:
         # Draw trail first
         self.trail.draw(surface)
         
-        # Draw dart pointing UP with detailed design
+        # Draw dart with rotation
         cx, cy = int(self.x), int(self.y)
         w, h = DART_WIDTH, DART_HEIGHT
-        
+
+        temp_surface = pygame.Surface((w + 8, h + 8), pygame.SRCALPHA)
+        tcx, tcy = (w + 8) // 2, (h + 8) // 2
+
         # Outer glow
         glow_surface = pygame.Surface((w + 4, h + 4), pygame.SRCALPHA)
         pygame.draw.rect(glow_surface, (255, 255, 255, 50), (2, 2, w, h))
-        surface.blit(glow_surface, (cx - w//2 - 2, cy - h//2 - 2))
-        
+        temp_surface.blit(glow_surface, (tcx - w//2 - 2, tcy - h//2 - 2))
+
         # Main body with gradient
-        pygame.draw.rect(surface, COLOR_WHITE, (cx - w//2, cy - h//2, w, h))
-        
+        pygame.draw.rect(temp_surface, COLOR_WHITE, (tcx - w//2, tcy - h//2, w, h))
+
         # Metallic shine gradient
-        for i in range(w//2):
-            alpha = int(100 * (1 - i / (w//2)))
-            pygame.draw.line(surface, (255, 255, 255), 
-                           (cx - w//2 + i, cy - h//2), 
-                           (cx - w//2 + i, cy + h//2), 1)
-        
+        for i in range(max(1, w//2)):
+            pygame.draw.line(temp_surface, (255, 255, 255),
+                           (tcx - w//2 + i, tcy - h//2),
+                           (tcx - w//2 + i, tcy + h//2), 1)
+
         # Yellow tip (sharp point)
-        pygame.draw.polygon(surface, COLOR_YELLOW, [
-            (cx, cy - h//2 - 4),
-            (cx - w//2, cy - h//2),
-            (cx + w//2, cy - h//2)
+        pygame.draw.polygon(temp_surface, COLOR_YELLOW, [
+            (tcx, tcy - h//2 - 4),
+            (tcx - w//2, tcy - h//2),
+            (tcx + w//2, tcy - h//2)
         ])
-        pygame.draw.polygon(surface, COLOR_BLACK, [
-            (cx, cy - h//2 - 4),
-            (cx - w//2, cy - h//2),
-            (cx + w//2, cy - h//2)
+        pygame.draw.polygon(temp_surface, COLOR_BLACK, [
+            (tcx, tcy - h//2 - 4),
+            (tcx - w//2, tcy - h//2),
+            (tcx + w//2, tcy - h//2)
         ], 1)
-        
+
         # Black border
-        pygame.draw.rect(surface, COLOR_BLACK, (cx - w//2, cy - h//2, w, h), 2)
-        
+        pygame.draw.rect(temp_surface, COLOR_BLACK, (tcx - w//2, tcy - h//2, w, h), 2)
+
         # Fletching at back
-        pygame.draw.rect(surface, (200, 50, 50), (cx - w//2 - 2, cy + h//2 - 4, w + 4, 6))
-        pygame.draw.rect(surface, COLOR_BLACK, (cx - w//2 - 2, cy + h//2 - 4, w + 4, 6), 1)
+        pygame.draw.rect(temp_surface, (200, 50, 50), (tcx - w//2 - 2, tcy + h//2 - 4, w + 4, 6))
+        pygame.draw.rect(temp_surface, COLOR_BLACK, (tcx - w//2 - 2, tcy + h//2 - 4, w + 4, 6), 1)
+
+        rotated = pygame.transform.rotate(temp_surface, -self.angle)
+        rect = rotated.get_rect(center=(cx, cy))
+        surface.blit(rotated, rect)
 
     @classmethod
-    def create_from_wing(cls, x: float, y: float) -> 'Dart':
+    def create_from_wing(cls, x: float, y: float, speed_level: int = 0) -> 'Dart':
         """Create a dart from a wing position."""
+        speed_multiplier = 1 + 0.2 * speed_level
         return cls(
             x=x, y=y,
             vx=0,
-            vy=-DART_SPEED,
+            vy=-DART_SPEED * speed_multiplier,
+            angle=0,
             life=DART_LIFETIME,
             trail=DartTrail()
         )
@@ -412,12 +425,29 @@ class DartManager:
     
     def __init__(self):
         self.darts: List[Dart] = []
+        self.dart_speed_level = 0
 
     def spawn_from_player(self, left_wing_x: float, left_wing_y: float,
                          right_wing_x: float, right_wing_y: float) -> None:
         """Spawn darts from both wings."""
-        self.darts.append(Dart.create_from_wing(left_wing_x, left_wing_y))
-        self.darts.append(Dart.create_from_wing(right_wing_x, right_wing_y))
+        self.darts.append(Dart.create_from_wing(left_wing_x, left_wing_y, self.dart_speed_level))
+        self.darts.append(Dart.create_from_wing(right_wing_x, right_wing_y, self.dart_speed_level))
+
+    def spawn_single(self, x: float, y: float, angle_deg: float = 0.0) -> None:
+        """Spawn a single dart from a position."""
+        speed_multiplier = 1 + 0.2 * self.dart_speed_level
+        angle_rad = math.radians(angle_deg - 90)
+        vx = math.cos(angle_rad) * DART_SPEED * speed_multiplier
+        vy = math.sin(angle_rad) * DART_SPEED * speed_multiplier
+        self.darts.append(Dart(
+            x=x,
+            y=y,
+            vx=vx,
+            vy=vy,
+            angle=angle_deg,
+            life=DART_LIFETIME,
+            trail=DartTrail()
+        ))
 
     def update(self, dt: float) -> None:
         """Update all darts."""
@@ -436,6 +466,125 @@ class DartManager:
         """Remove a specific dart."""
         if dart in self.darts:
             self.darts.remove(dart)
+
+
+@dataclass
+class WingmanAce:
+    """Small ally plane that flies smooth arcs and shoots darts."""
+    x: float
+    y: float
+    angle: float
+    speed: float
+    dart_timer: float = 0.0
+
+    def update(self, player_x: float, player_y: float, target_pos: Tuple[float, float], dt: float) -> None:
+        """Update flight path with smooth turning."""
+        tx, ty = target_pos
+        dx = tx - self.x
+        dy = ty - self.y
+        desired_angle = math.atan2(dy, dx)
+        # Smoothly rotate toward desired angle
+        angle_diff = (desired_angle - self.angle + math.pi) % (2 * math.pi) - math.pi
+        turn = max(-WINGMAN_TURN_RATE * dt, min(WINGMAN_TURN_RATE * dt, angle_diff))
+        self.angle += turn
+
+        # Speed variation
+        self.speed = max(WINGMAN_MIN_SPEED, min(WINGMAN_MAX_SPEED, self.speed + random.uniform(-0.2, 0.2) * dt))
+
+        # Move forward
+        self.x += math.cos(self.angle) * self.speed * dt * 60
+        self.y += math.sin(self.angle) * self.speed * dt * 60
+
+        # Keep within a wide orbit around player
+        dist_x = self.x - player_x
+        dist_y = self.y - player_y
+        dist = math.hypot(dist_x, dist_y)
+        if dist > WINGMAN_ORBIT_RADIUS:
+            pull_angle = math.atan2(player_y - self.y, player_x - self.x)
+            self.angle += max(-WINGMAN_TURN_RATE * dt, min(WINGMAN_TURN_RATE * dt, (pull_angle - self.angle + math.pi) % (2 * math.pi) - math.pi))
+
+        # Wrap around screen edges smoothly
+        if self.x < -40:
+            self.x = SCREEN_WIDTH + 40
+        elif self.x > SCREEN_WIDTH + 40:
+            self.x = -40
+        if self.y < -40:
+            self.y = SCREEN_HEIGHT + 40
+        elif self.y > SCREEN_HEIGHT + 40:
+            self.y = -40
+
+    def update_dart_timer(self, dt: float) -> None:
+        self.dart_timer = max(0.0, self.dart_timer - dt * 1000)
+
+    def can_shoot(self) -> bool:
+        return self.dart_timer <= 0
+
+    def reset_cooldown(self, base_cooldown_ms: float) -> None:
+        self.dart_timer = base_cooldown_ms * WINGMAN_DART_COOLDOWN_MULTIPLIER
+
+    def draw(self, surface: pygame.Surface) -> None:
+        """Draw wingman plane with propeller and glow."""
+        size = 22
+        temp_surface = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
+        cx, cy = size, size
+
+        # Glow
+        pygame.draw.circle(temp_surface, (255, 80, 80, 60), (cx, cy), size)
+
+        # Wings
+        pygame.draw.rect(temp_surface, COLOR_RED, (cx - 12, cy - 3, 24, 6))
+        pygame.draw.rect(temp_surface, COLOR_BLACK, (cx - 12, cy - 3, 24, 6), 1)
+
+        # Body
+        pygame.draw.rect(temp_surface, COLOR_RED, (cx - 4, cy - 10, 8, 20))
+        pygame.draw.rect(temp_surface, COLOR_BLACK, (cx - 4, cy - 10, 8, 20), 1)
+
+        # Nose
+        pygame.draw.polygon(temp_surface, COLOR_WHITE, [(cx, cy - 14), (cx - 4, cy - 10), (cx + 4, cy - 10)])
+        pygame.draw.polygon(temp_surface, COLOR_BLACK, [(cx, cy - 14), (cx - 4, cy - 10), (cx + 4, cy - 10)], 1)
+
+        # Cockpit
+        pygame.draw.rect(temp_surface, (80, 200, 255), (cx - 3, cy - 6, 6, 6))
+        pygame.draw.rect(temp_surface, COLOR_BLACK, (cx - 3, cy - 6, 6, 6), 1)
+
+        # Propeller blur
+        prop_len = 8
+        pygame.draw.line(temp_surface, (200, 200, 200), (cx, cy - 14), (cx, cy - 14 - prop_len), 2)
+        pygame.draw.line(temp_surface, (200, 200, 200), (cx - prop_len, cy - 14), (cx + prop_len, cy - 14), 2)
+        pygame.draw.circle(temp_surface, (240, 240, 240), (cx, cy - 14), 2)
+
+        # Rotate and draw
+        rotated = pygame.transform.rotate(temp_surface, -math.degrees(self.angle) + 90)
+        rect = rotated.get_rect(center=(int(self.x), int(self.y)))
+        surface.blit(rotated, rect)
+
+
+class WingmanManager:
+    """Manages wingman ace planes."""
+    
+    def __init__(self):
+        self.wingmen: List[WingmanAce] = []
+
+    def set_count(self, count: int, player_x: float, player_y: float) -> None:
+        self.wingmen = []
+        for i in range(count):
+            angle = math.radians(i * (360 / max(1, count)))
+            x = player_x + math.cos(angle) * 80
+            y = player_y + math.sin(angle) * 80
+            speed = random.uniform(WINGMAN_MIN_SPEED, WINGMAN_MAX_SPEED)
+            self.wingmen.append(WingmanAce(x=x, y=y, angle=angle, speed=speed))
+
+    def update(self, player_x: float, player_y: float, target_pos: Tuple[float, float], dt: float) -> None:
+        for wingman in self.wingmen:
+            wingman.update(player_x, player_y, target_pos, dt)
+            wingman.update_dart_timer(dt)
+
+    def draw(self, surface: pygame.Surface) -> None:
+        for wingman in self.wingmen:
+            wingman.draw(surface)
+
+    def get_wingmen(self) -> List[WingmanAce]:
+        return self.wingmen
 
 
 @dataclass

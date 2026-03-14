@@ -14,7 +14,7 @@ from .constants import (
     LIGHTNING_BASE_COOLDOWN, LIGHTNING_COOLDOWN_REDUCTION
 )
 from .effects import EngineGlow, MuzzleFlash
-from .projectiles import DartManager, Laser, MissileManager, BoomerangManager, LightningManager
+from .projectiles import DartManager, Laser, MissileManager, BoomerangManager, LightningManager, WingmanManager
 
 
 @dataclass
@@ -31,7 +31,6 @@ class Player:
     muzzle_flash_left: MuzzleFlash
     muzzle_flash_right: MuzzleFlash
     shoot_timer: float
-    
     # Laser state
     has_laser: bool
     laser_level: int
@@ -52,6 +51,11 @@ class Player:
     has_lightning: bool
     lightning_level: int
     lightning_manager: LightningManager
+
+    # Wingman state
+    has_wingman: bool
+    wingman_level: int
+    wingman_manager: WingmanManager
 
     def __init__(self, x: float, y: float):
         self.x = x
@@ -86,6 +90,11 @@ class Player:
         self.has_lightning = False
         self.lightning_level = 0
         self.lightning_manager = LightningManager()
+
+        # Wingman initialization
+        self.has_wingman = False
+        self.wingman_level = 0
+        self.wingman_manager = WingmanManager()
 
     def upgrade_laser(self) -> None:
         """Upgrade or buy laser."""
@@ -132,6 +141,16 @@ class Player:
             self.lightning_level += 1
         
         self.lightning_manager.level = self.lightning_level
+
+    def upgrade_wingman(self) -> None:
+        """Upgrade or buy wingman aces."""
+        if not self.has_wingman:
+            self.has_wingman = True
+            self.wingman_level = 1
+        else:
+            self.wingman_level += 1
+        
+        self.wingman_manager.set_count(self.wingman_level, self.x, self.y)
 
     def handle_mouse(self, pos: Tuple[int, int]) -> None:
         self.target_x = pos[0]
@@ -208,6 +227,10 @@ class Player:
         # 0.5 Lightning
         if self.has_lightning:
             self.lightning_manager.draw(surface)
+
+        # 0.6 Wingmen
+        if self.has_wingman:
+            self.wingman_manager.draw(surface)
 
         # 1. Darts
         self.dart_manager.draw(surface)

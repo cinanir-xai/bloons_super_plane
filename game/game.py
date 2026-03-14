@@ -2,11 +2,12 @@
 
 import pygame
 import sys
+import math
 
 from .constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, FPS,
     COLOR_BLACK, COLOR_WHITE, COLOR_RED, COLOR_BLUE, COLOR_GREEN, COLOR_YELLOW, COLOR_PINK,
-    BALLOON_SPEED
+    BALLOON_SPEED, DART_COOLDOWN
 )
 from .background import Background
 from .player import Player
@@ -92,7 +93,8 @@ class Game:
             laser_level=self.player.laser_level,
             missile_level=self.player.missile_level,
             boomerang_level=self.player.boomerang_level,
-            lightning_level=self.player.lightning_level
+            lightning_level=self.player.lightning_level,
+            wingman_level=self.player.wingman_level
         )
         pygame.mouse.set_visible(True)
 
@@ -140,6 +142,8 @@ class Game:
                     self.shop.buy_upgrade('boomerang')
                 elif result == 'buy_lightning':
                     self.shop.buy_upgrade('lightning')
+                elif result == 'buy_wingman':
+                    self.shop.buy_upgrade('wingman')
             
             elif self.game_state == "playing":
                 self._handle_playing_events(event)
@@ -198,6 +202,11 @@ class Game:
                 self.orb_manager.total_orbs -= self.end_screen.lightning_cost
                 self.player.upgrade_lightning()
                 self._on_level_complete()
+        elif result == 'buy_wingman':
+            if self.orb_manager.total_orbs >= self.end_screen.wingman_cost:
+                self.orb_manager.total_orbs -= self.end_screen.wingman_cost
+                self.player.upgrade_wingman()
+                self._on_level_complete()
         elif result == 'buy_dart':
             if self.orb_manager.total_orbs >= self.end_screen.dart_speed_cost:
                 self.orb_manager.total_orbs -= self.end_screen.dart_speed_cost
@@ -214,7 +223,8 @@ class Game:
             laser_level=self.player.laser_level,
             missile_level=self.player.missile_level,
             boomerang_level=self.player.boomerang_level,
-            lightning_level=self.player.lightning_level
+            lightning_level=self.player.lightning_level,
+            wingman_level=self.player.wingman_level
         )
 
     def _sync_player_upgrades(self) -> None:
@@ -229,6 +239,8 @@ class Game:
             self.player.upgrade_boomerang()
         while self.player.lightning_level < self.shop.lightning_level:
             self.player.upgrade_lightning()
+        while self.player.wingman_level < self.shop.wingman_level:
+            self.player.upgrade_wingman()
         if hasattr(self.player.dart_manager, 'dart_speed_level'):
             while self.player.dart_manager.dart_speed_level < self.shop.dart_speed_level:
                 self.player.dart_manager.dart_speed_level += 1
@@ -354,6 +366,10 @@ class Game:
             if target:
                 self._trigger_lightning_strike(target)
 
+        # Update wingmen attacks
+        if self.player.has_wingman:
+            self._update_wingmen(dt)
+
         # Check if level complete (all balloons popped or off-screen)
         remaining = self.balloon_manager.get_remaining_count()
         if remaining <= 0:
@@ -418,6 +434,36 @@ class Game:
             self.balloon_manager.pop_balloon(arc_target, arc_target.x, arc_target.y)
             if arc_pop:
                 self.level_manager.balloon_popped()
+
+    def _get_furthest_balloon(self) -> Balloon:
+        """Find balloon closest to bottom of screen (furthest along)."""
+        furthest = None
+        max_y = -float('inf')
+        for balloon in self.balloon_manager.balloons:
+            if balloon.popped:
+                continue
+            if balloon.y > max_y:
+                max_y = balloon.y
+                furthest = balloon
+        return furthest
+
+    def _update_wingmen(self, dt: float) -> None:
+        """Update wingman positions and fire darts."""
+        target = self._get_furthest_balloon()
+        target_pos = (self.player.x, self.player.y - 200)
+        if target:
+            target_pos = (target.x, target.y)
+
+        self.player.wingman_manager.update(self.player.x, self.player.y, target_pos, dt)
+        base_cooldown = DART_COOLDOWN
+
+        for wingman in self.player.wingman_manager.get_wingmen():
+            if target and wingman.can_shoot():
+                angle_deg = math.degrees(math.atan2(target.y - wingman.y, target.x - wingman.x)) + 90
+                self.player.dart_manager.spawn_single(wingman.x, wingman.y, angle_deg)
+                wingman.reset_cooldown(base_cooldown)
+            elif not target and wingman.can_shoot():
+                wingman.reset_cooldown(base_cooldown)
 
     def draw(self) -> None:
         """Draw everything based on current state."""

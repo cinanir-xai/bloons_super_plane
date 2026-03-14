@@ -268,13 +268,14 @@ class Shop:
     
     def __init__(self, total_orbs: int = 0, dart_speed_level: int = 0,
                  laser_level: int = 0, missile_level: int = 0, boomerang_level: int = 0,
-                 lightning_level: int = 0):
+                 lightning_level: int = 0, wingman_level: int = 0):
         self.total_orbs = total_orbs
         self.dart_speed_level = dart_speed_level
         self.laser_level = laser_level
         self.missile_level = missile_level
         self.boomerang_level = boomerang_level
         self.lightning_level = lightning_level
+        self.wingman_level = wingman_level
         self.selected_option = 0  # 0 = back
         
         # Recalculate costs
@@ -283,7 +284,8 @@ class Shop:
             LASER_UNLOCK_COST, LASER_BASE_COST, LASER_COST_MULTIPLIER,
             MISSILE_UNLOCK_COST, MISSILE_BASE_COST, MISSILE_COST_MULTIPLIER,
             BOOMERANG_UNLOCK_COST, BOOMERANG_BASE_COST, BOOMERANG_COST_MULTIPLIER,
-            LIGHTNING_UNLOCK_COST, LIGHTNING_BASE_COST, LIGHTNING_COST_MULTIPLIER
+            LIGHTNING_UNLOCK_COST, LIGHTNING_BASE_COST, LIGHTNING_COST_MULTIPLIER,
+            WINGMAN_UNLOCK_COST, WINGMAN_BASE_COST, WINGMAN_COST_MULTIPLIER
         )
         
         # Dart: unlocked from beginning, upgrades start at 100, increase by 50%
@@ -318,6 +320,13 @@ class Shop:
         else:
             self.lightning_cost = int(LIGHTNING_BASE_COST * (LIGHTNING_COST_MULTIPLIER ** (lightning_level - 1)))
         self.can_buy_lightning = self.total_orbs >= self.lightning_cost
+
+        # Wingman: 200 to unlock, then 100 * 1.5^(level-1) for upgrades
+        if wingman_level == 0:
+            self.wingman_cost = WINGMAN_UNLOCK_COST
+        else:
+            self.wingman_cost = int(WINGMAN_BASE_COST * (WINGMAN_COST_MULTIPLIER ** (wingman_level - 1)))
+        self.can_buy_wingman = self.total_orbs >= self.wingman_cost
     
     def handle_event(self, event: pygame.event.Event) -> str:
         """Handle input. Returns 'buy_X', 'back', or 'none'."""
@@ -338,7 +347,7 @@ class Shop:
             btn_width = 350
             btn_height = 80
             
-            for i in range(5):
+            for i in range(6):
                 if btn_x <= mx <= btn_x + btn_width:
                     if btn_y + i * 100 <= my <= btn_y + i * 100 + btn_height:
                         if i == 0 and self.can_buy_dart_speed:
@@ -351,6 +360,8 @@ class Shop:
                             return 'buy_boomerang'
                         elif i == 4 and self.can_buy_lightning:
                             return 'buy_lightning'
+                        elif i == 5 and self.can_buy_wingman:
+                            return 'buy_wingman'
         
         return 'none'
     
@@ -361,7 +372,8 @@ class Shop:
             LASER_UNLOCK_COST, LASER_BASE_COST, LASER_COST_MULTIPLIER,
             MISSILE_UNLOCK_COST, MISSILE_BASE_COST, MISSILE_COST_MULTIPLIER,
             BOOMERANG_UNLOCK_COST, BOOMERANG_BASE_COST, BOOMERANG_COST_MULTIPLIER,
-            LIGHTNING_UNLOCK_COST, LIGHTNING_BASE_COST, LIGHTNING_COST_MULTIPLIER
+            LIGHTNING_UNLOCK_COST, LIGHTNING_BASE_COST, LIGHTNING_COST_MULTIPLIER,
+            WINGMAN_UNLOCK_COST, WINGMAN_BASE_COST, WINGMAN_COST_MULTIPLIER
         )
         
         if upgrade_type == 'dart' and self.can_buy_dart_speed:
@@ -411,6 +423,16 @@ class Shop:
                 self.lightning_cost = int(LIGHTNING_BASE_COST * (LIGHTNING_COST_MULTIPLIER ** (self.lightning_level - 1)))
             self.can_buy_lightning = self.total_orbs >= self.lightning_cost
             return True
+        elif upgrade_type == 'wingman' and self.can_buy_wingman:
+            self.total_orbs -= self.wingman_cost
+            self.wingman_level += 1
+            # After unlock, upgrades cost 100 * 1.5^(level-1)
+            if self.wingman_level == 1:
+                self.wingman_cost = WINGMAN_BASE_COST
+            else:
+                self.wingman_cost = int(WINGMAN_BASE_COST * (WINGMAN_COST_MULTIPLIER ** (self.wingman_level - 1)))
+            self.can_buy_wingman = self.total_orbs >= self.wingman_cost
+            return True
         return False
     
     def draw(self, surface: pygame.Surface) -> None:
@@ -452,7 +474,9 @@ class Shop:
             ("Boomerang", self.boomerang_level, self.boomerang_cost,
              self.can_buy_boomerang, COLOR_BROWN),
             ("Lightning", self.lightning_level, self.lightning_cost,
-             self.can_buy_lightning, (180, 120, 255))
+             self.can_buy_lightning, (180, 120, 255)),
+            ("Wingman Aces", self.wingman_level, self.wingman_cost,
+             self.can_buy_wingman, (255, 120, 120))
         ]
         
         btn_x = 100
@@ -587,3 +611,16 @@ class Shop:
             pygame.draw.line(surface, COLOR_WHITE, (cx + 2, cy - 2), (cx - 1, cy + 10), 1)
             # Sparkle
             pygame.draw.circle(surface, COLOR_WHITE, (cx - 2, cy - 6), 2)
+
+        elif index == 5:  # Wingman icon
+            # Glow
+            pygame.draw.circle(surface, (255, 120, 120), (cx, cy), 12)
+            # Wings
+            pygame.draw.rect(surface, COLOR_RED, (cx - 10, cy - 2, 20, 4))
+            pygame.draw.rect(surface, COLOR_BLACK, (cx - 10, cy - 2, 20, 4), 1)
+            # Body
+            pygame.draw.rect(surface, COLOR_RED, (cx - 3, cy - 8, 6, 16))
+            pygame.draw.rect(surface, COLOR_BLACK, (cx - 3, cy - 8, 6, 16), 1)
+            # Propeller
+            pygame.draw.line(surface, COLOR_WHITE, (cx - 6, cy - 10), (cx + 6, cy - 10), 2)
+            pygame.draw.line(surface, COLOR_WHITE, (cx, cy - 14), (cx, cy - 6), 2)

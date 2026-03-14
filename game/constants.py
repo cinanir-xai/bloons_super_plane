@@ -96,6 +96,16 @@ LIGHTNING_ARC_GROWTH = 2  # extra arcs per level
 LIGHTNING_STRIKE_COLOR = (160, 90, 255)
 LIGHTNING_GLOW_COLOR = (210, 160, 255)
 
+# Wingman Ace settings
+WINGMAN_UNLOCK_COST = 200  # Cost to unlock the weapon
+WINGMAN_BASE_COST = 100  # First upgrade cost after unlock
+WINGMAN_COST_MULTIPLIER = 1.5
+WINGMAN_MAX_SPEED = 3.4
+WINGMAN_MIN_SPEED = 2.4
+WINGMAN_TURN_RATE = 1.4  # radians per second
+WINGMAN_ORBIT_RADIUS = 220
+WINGMAN_DART_COOLDOWN_MULTIPLIER = 2.0  # shoots half as fast as player
+
 # Background settings
 CLOUD_COUNT = 12
 TREE_COUNT = 20
