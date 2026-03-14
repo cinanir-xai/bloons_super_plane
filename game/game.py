@@ -449,12 +449,13 @@ class Game:
 
     def _update_wingmen(self, dt: float) -> None:
         """Update wingman positions and fire darts."""
-        target = self._get_furthest_balloon()
-        target_pos = (self.player.x, self.player.y - 200)
-        if target:
-            target_pos = (target.x, target.y)
+        # Flight target stays above player (for smooth arcs)
+        flight_target = (self.player.x, self.player.y - 200)
 
-        self.player.wingman_manager.update(self.player.x, self.player.y, target_pos, dt)
+        # Find closest balloon for shooting
+        target = self._get_closest_balloon(self.player.x, self.player.y)
+
+        self.player.wingman_manager.update(self.player.x, self.player.y, flight_target, dt)
         base_cooldown = DART_COOLDOWN
 
         for wingman in self.player.wingman_manager.get_wingmen():
