@@ -1,6 +1,7 @@
 """Player plane class - Retro Atari Inspired."""
 
 import pygame
+import math
 from typing import Tuple
 from dataclasses import dataclass
 
@@ -157,9 +158,10 @@ class Player:
         self.target_y = pos[1]
 
     def update(self, dt: float) -> None:
-        # Smooth movement using lerp-like approach
-        self.x += (self.target_x - self.x) * PLAYER_SPEED
-        self.y += (self.target_y - self.y) * PLAYER_SPEED
+        # Smooth movement using lerp-like approach (frame-rate independent)
+        lerp_factor = 1 - math.pow(1 - PLAYER_SPEED, dt * 60)
+        self.x += (self.target_x - self.x) * lerp_factor
+        self.y += (self.target_y - self.y) * lerp_factor
         
         # Clamp to screen
         self.x = max(self.width // 2, min(SCREEN_WIDTH - self.width // 2, self.x))

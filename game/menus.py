@@ -1,6 +1,8 @@
 """Menu screens for the game - Main Menu, Level Select, and Shop."""
 
 import pygame
+import math
+import random
 from game.constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, COLOR_BLACK, COLOR_WHITE,
     COLOR_YELLOW, COLOR_RED, COLOR_GREEN, COLOR_CYAN, COLOR_ORANGE,
@@ -18,13 +20,12 @@ class MainMenu:
     
     def _init_animations(self):
         """Initialize animated elements."""
-        import random
         self.time_offset = random.randint(0, 10000)
         
         # Floating balloons with different properties
         self.balloons = []
         balloon_colors = [COLOR_PINK, COLOR_YELLOW, COLOR_GREEN, COLOR_BLUE, COLOR_RED, COLOR_ORANGE, COLOR_CYAN]
-        for i in range(15):
+        for _ in range(15):
             self.balloons.append({
                 'x': random.randint(50, SCREEN_WIDTH - 50),
                 'y': random.randint(100, SCREEN_HEIGHT - 150),
@@ -32,7 +33,7 @@ class MainMenu:
                 'color': random.choice(balloon_colors),
                 'vx': random.uniform(-0.3, 0.3),
                 'vy': random.uniform(-0.5, -0.2),  # Float upward
-                'bob_phase': random.uniform(0, 6.28),
+                'bob_phase': random.uniform(0, 2 * math.pi),
                 'bob_speed': random.uniform(0.5, 1.5),
                 'bob_amplitude': random.uniform(10, 25)
             })
@@ -52,7 +53,7 @@ class MainMenu:
         
         # Clouds for depth
         self.clouds = []
-        for i in range(8):
+        for _ in range(8):
             self.clouds.append({
                 'x': random.randint(-100, SCREEN_WIDTH + 100),
                 'y': random.randint(50, SCREEN_HEIGHT - 300),
@@ -94,18 +95,18 @@ class MainMenu:
         
         return 'none'
     
-    def _update_animations(self):
+    def _update_animations(self, dt: float) -> None:
         """Update all animated elements."""
-        import math
         t = pygame.time.get_ticks() / 1000.0
+        speed_scale = dt * 60
         
         # Update balloons
         for balloon in self.balloons:
-            balloon['x'] += balloon['vx']
-            balloon['y'] += balloon['vy'] + math.sin(t * balloon['bob_speed'] + balloon['bob_phase']) * 0.1
-            
+            balloon['x'] += balloon['vx'] * speed_scale
+            balloon['y'] += balloon['vy'] * speed_scale
             # Bobbing motion
-            balloon['y'] += math.sin(t * balloon['bob_speed'] + balloon['bob_phase']) * balloon['bob_amplitude'] * 0.02
+            bob = math.sin(t * balloon['bob_speed'] + balloon['bob_phase']) * balloon['bob_amplitude'] * 0.02
+            balloon['y'] += bob
             
             # Wrap around screen
             if balloon['x'] < -50:
@@ -117,7 +118,7 @@ class MainMenu:
         
         # Update planes
         for plane in self.planes:
-            plane['x'] += plane['speed'] * plane['direction']
+            plane['x'] += plane['speed'] * plane['direction'] * speed_scale
             # Slight sine wave for flight path
             plane['y'] += math.sin(t * 0.5 + plane['x'] * 0.01) * 0.3
             
@@ -131,19 +132,23 @@ class MainMenu:
         
         # Update clouds
         for cloud in self.clouds:
-            cloud['x'] += cloud['speed']
+            cloud['x'] += cloud['speed'] * speed_scale
             if cloud['x'] > SCREEN_WIDTH + 150:
                 cloud['x'] = -150
     
-    def draw(self, surface: pygame.Surface) -> None:
+    def draw(self, surface: pygame.Surface, dt: float = 0.0) -> None:
         """Draw the main menu with animated background."""
         # Update animations
-        self._update_animations()
+        self._update_animations(dt)
         
-        # Dark sky background with gradient
-        for y in range(SCREEN_HEIGHT):
-            color = (10 + y // 30, 15 + y // 25, 30 + y // 20)
-            pygame.draw.line(surface, color, (0, y), (SCREEN_WIDTH, y))
+        # Dark sky background with gradient (cached for performance)
+        if not hasattr(self, "_gradient_bg"):
+            gradient = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+            for y in range(SCREEN_HEIGHT):
+                color = (10 + y // 30, 15 + y // 25, 30 + y // 20)
+                pygame.draw.line(gradient, color, (0, y), (SCREEN_WIDTH, y))
+            self._gradient_bg = gradient
+        surface.blit(self._gradient_bg, (0, 0))
         
         # Draw clouds in background
         for cloud in self.clouds:
@@ -159,23 +164,23 @@ class MainMenu:
             self._draw_flying_plane(surface, int(plane['x']), int(plane['y']), 
                                     plane['direction'], plane['size'], plane['color'])
         
-        # Draw stars with twinkle effect
+        # Draw stars with twinkle effect (cache positions)
         t = pygame.time.get_ticks()
-        for i in range(60):
-            star_x = (t // 50 + i * 137) % SCREEN_WIDTH
-            star_y = (i * 83) % SCREEN_HEIGHT
-            # Twinkle effect
+        if not hasattr(self, "_stars"):
+            self._stars = [(random.randint(0, SCREEN_WIDTH - 1), random.randint(0, SCREEN_HEIGHT - 1)) for _ in range(60)]
+        for i, (star_x, star_y) in enumerate(self._stars):
             twinkle = (t // 100 + i * 47) % 200
-            if twinkle > 100:
-                brightness = 200 - twinkle + 55
-            else:
-                brightness = twinkle + 55
+            brightness = 200 - twinkle + 55 if twinkle > 100 else twinkle + 55
             size = 1 if (t // 500 + i) % 3 != 0 else 2
             pygame.draw.circle(surface, (brightness, brightness, brightness), (star_x, star_y), size)
         
-        font_title = pygame.font.Font(None, 140)
-        font_medium = pygame.font.Font(None, 48)
-        font_small = pygame.font.Font(None, 32)
+        if not hasattr(self, "_font_title"):
+            self._font_title = pygame.font.Font(None, 140)
+            self._font_medium = pygame.font.Font(None, 48)
+            self._font_small = pygame.font.Font(None, 32)
+        font_title = self._font_title
+        font_medium = self._font_medium
+        font_small = self._font_small
         
         # Title card background with glow
         card_x = SCREEN_WIDTH // 2 - 400
@@ -199,15 +204,18 @@ class MainMenu:
         title = font_title.render("SKY DEFENDER", True, COLOR_CYAN)
         title_rect = title.get_rect(center=(SCREEN_WIDTH // 2, card_y + 80))
         
-        # Animated glow effect
-        glow_intensity = 100 + int(50 * (0.5 + 0.5 * __import__('math').sin(t / 500)))
+        glow_intensity = 100 + int(50 * (0.5 + 0.5 * math.sin(t / 500)))
+        if not hasattr(self, "_title_glow_base"):
+            self._title_glow_base = font_title.render("SKY DEFENDER", True, (0, 80, 160))
+        glow_color = (0, glow_intensity // 2, glow_intensity)
+        glow = self._title_glow_base.copy()
+        glow.fill(glow_color, special_flags=pygame.BLEND_RGB_MULT)
         for offset in [(3, 3), (-3, -3), (3, -3), (-3, 3)]:
-            glow = font_title.render("SKY DEFENDER", True, (0, glow_intensity // 2, glow_intensity))
             surface.blit(glow, (title_rect.x + offset[0], title_rect.y + offset[1]))
         surface.blit(title, title_rect)
         
         # Subtitle with fade effect
-        pulse = 0.7 + 0.3 * (0.5 + 0.5 * __import__('math').sin(t / 800))
+        pulse = 0.7 + 0.3 * (0.5 + 0.5 * math.sin(t / 800))
         subtitle_color = (int(180 * pulse), int(180 * pulse), int(220 * pulse))
         subtitle = font_small.render("Retro Atari-Style Shooter", True, subtitle_color)
         sub_rect = subtitle.get_rect(center=(SCREEN_WIDTH // 2, card_y + 150))
@@ -217,7 +225,7 @@ class MainMenu:
         balloon_colors = [COLOR_PINK, COLOR_YELLOW, COLOR_GREEN, COLOR_BLUE, COLOR_RED]
         for i in range(5):
             bx = card_x + 80 + i * 140
-            by = card_y + 60 + (i % 2) * 30 + int(5 * __import__('math').sin(t / 400 + i))
+            by = card_y + 60 + (i % 2) * 30 + int(5 * math.sin(t / 400 + i))
             self._draw_menu_balloon(surface, bx, by, balloon_colors[i], 25)
         
         # Draw plane in title card (with engine animation)
@@ -265,10 +273,15 @@ class MainMenu:
             surface.blit(text_surface, text_rect)
         
         # Instructions with pulsing
-        instr_alpha = 0.5 + 0.5 * (0.5 + 0.5 * __import__('math').sin(t / 600))
-        instr = font_small.render("Arrow Keys + ENTER or Click to select", True, (int(120 * instr_alpha), int(120 * instr_alpha), int(140 * instr_alpha)))
-        instr_rect = instr.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 30))
-        surface.blit(instr, instr_rect)
+        instr_alpha = 0.5 + 0.5 * (0.5 + 0.5 * math.sin(t / 600))
+        instr_text = "Arrow Keys + ENTER or Click to select"
+        if not hasattr(self, "_instr_base"):
+            self._instr_base = font_small.render(instr_text, True, (120, 120, 140))
+        instr_color = (int(120 * instr_alpha), int(120 * instr_alpha), int(140 * instr_alpha))
+        instr_surface = self._instr_base.copy()
+        instr_surface.fill(instr_color, special_flags=pygame.BLEND_RGB_MULT)
+        instr_rect = instr_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 30))
+        surface.blit(instr_surface, instr_rect)
     
     def _draw_cloud(self, surface: pygame.Surface, x: int, y: int, size: int) -> None:
         """Draw a fluffy cloud."""
@@ -282,28 +295,32 @@ class MainMenu:
     
     def _draw_animated_balloon(self, surface: pygame.Surface, x: int, y: int, color: tuple, radius: int) -> None:
         """Draw an animated floating balloon with string and glow."""
-        # Outer glow using semi-transparent circles
-        for i in range(3, 0, -1):
-            glow_radius = radius + i * 4
-            # Create a soft glow by drawing multiple circles with decreasing opacity
-            glow_surface = pygame.Surface((glow_radius * 2 + 2, glow_radius * 2 + 2), pygame.SRCALPHA)
-            # Fade from center
+        cache_key = (color, radius)
+        if not hasattr(self, "_balloon_cache"):
+            self._balloon_cache = {}
+        if cache_key not in self._balloon_cache:
+            glow_radius = radius + 12
+            balloon_surface = pygame.Surface((glow_radius * 2 + 2, glow_radius * 2 + 2), pygame.SRCALPHA)
+            # Glow
             for r in range(glow_radius, 0, -2):
                 alpha = max(0, 40 - (glow_radius - r) * 3)
-                pygame.draw.circle(glow_surface, (*color, alpha), (glow_radius + 1, glow_radius + 1), r)
-            surface.blit(glow_surface, (x - glow_radius - 1, y - glow_radius - 1))
+                pygame.draw.circle(balloon_surface, (*color, alpha), (glow_radius + 1, glow_radius + 1), r)
+            # Balloon body
+            pygame.draw.circle(balloon_surface, color, (glow_radius + 1, glow_radius + 1), radius)
+            # Inner highlight
+            pygame.draw.circle(balloon_surface,
+                               (min(color[0] + 60, 255), min(color[1] + 60, 255), min(color[2] + 60, 255)),
+                               (glow_radius + 1 - radius//3, glow_radius + 1 - radius//3), radius//4)
+            # Shine
+            pygame.draw.circle(balloon_surface, (255, 255, 255), (glow_radius + 1 - radius//2, glow_radius + 1 - radius//2), radius//8)
+            # String
+            pygame.draw.line(balloon_surface, (80, 80, 80), (glow_radius + 1, glow_radius + 1 + radius), (glow_radius + 1, glow_radius + 1 + radius + 25), 1)
+            # Knot
+            pygame.draw.circle(balloon_surface, (60, 60, 60), (glow_radius + 1, glow_radius + 1 + radius + 5), 3)
+            self._balloon_cache[cache_key] = balloon_surface
         
-        # Balloon body with gradient effect
-        pygame.draw.circle(surface, color, (x, y), radius)
-        # Inner highlight
-        pygame.draw.circle(surface, (min(color[0] + 60, 255), min(color[1] + 60, 255), min(color[2] + 60, 255)), 
-                          (x - radius//3, y - radius//3), radius//4)
-        # Shine
-        pygame.draw.circle(surface, (255, 255, 255), (x - radius//2, y - radius//2), radius//8)
-        # String
-        pygame.draw.line(surface, (80, 80, 80), (x, y + radius), (x, y + radius + 25), 1)
-        # Knot
-        pygame.draw.circle(surface, (60, 60, 60), (x, y + radius + 5), 3)
+        cached = self._balloon_cache[cache_key]
+        surface.blit(cached, (x - cached.get_width() // 2, y - cached.get_height() // 2))
     
     def _draw_menu_balloon(self, surface: pygame.Surface, x: int, y: int, color: tuple, radius: int) -> None:
         """Draw a balloon for the title card."""

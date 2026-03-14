@@ -3,7 +3,7 @@
 # Screen dimensions (Now 1125x1500 - 25% larger than previous 900x1200)
 SCREEN_WIDTH = 1125
 SCREEN_HEIGHT = 1500
-FPS = 60
+FPS = 0  # Uncapped frame rate
 
 # Retro Color Palette (Atari-style)
 COLOR_BG_GRASS = (34, 139, 34)

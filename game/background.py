@@ -379,13 +379,23 @@ class Background:
         self._draw_river(surface)
         
         # 3. Draw ground items (sorted by y for depth)
-        sorted_items = sorted(self.ground_items, key=lambda i: i.y)
+        sorted_items = self._get_sorted_ground_items()
         for item in sorted_items:
             item.draw(surface)
         
         # 4. Draw clouds (on top layer)
         for cloud in self.clouds:
             cloud.draw(surface)
+
+    def _get_sorted_ground_items(self) -> List:
+        """Get ground items sorted by y with caching for performance."""
+        if not hasattr(self, "_sorted_items_cache"):
+            self._sorted_items_cache = []
+            self._sort_timer = 0
+        self._sort_timer += 1
+        if self._sort_timer % 5 == 0 or not self._sorted_items_cache:
+            self._sorted_items_cache = sorted(self.ground_items, key=lambda i: i.y)
+        return self._sorted_items_cache
 
     def _draw_river(self, surface: pygame.Surface) -> None:
         """Draw connected river segments."""

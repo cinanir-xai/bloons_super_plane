@@ -5,7 +5,7 @@ import sys
 import math
 
 from .constants import (
-    SCREEN_WIDTH, SCREEN_HEIGHT, FPS,
+    SCREEN_WIDTH, SCREEN_HEIGHT,
     COLOR_BLACK, COLOR_WHITE, COLOR_RED, COLOR_BLUE, COLOR_GREEN, COLOR_YELLOW, COLOR_PINK,
     BALLOON_SPEED, DART_COOLDOWN
 )
@@ -53,6 +53,9 @@ class Game:
         # Visual effects
         self.screen_shake = ScreenShake()
         
+        # Collision tracking (avoid repeated collision checks)
+        self._collision_checked = set()
+        
         # State
         self.running = True
         self.paused = False
@@ -75,6 +78,18 @@ class Game:
         self.balloon_manager.balloons = balloons
         self.level_start_orbs = self.orb_manager.total_orbs
         pygame.mouse.set_visible(False)
+
+    def _handle_debug_menu_input(self, event: pygame.event.Event) -> None:
+        """Handle debug shortcuts on the main menu."""
+        if event.type != pygame.KEYDOWN:
+            return
+        if event.key == pygame.K_f:
+            # Unlock all levels
+            self.unlocked_levels = self.level_manager.total_levels
+            self.level_select.unlocked_levels = self.unlocked_levels
+        elif event.key == pygame.K_e:
+            # Add 1000 orbs
+            self.orb_manager.total_orbs += 1000
 
     def _on_level_complete(self) -> None:
         """Handle level completion - goes to shop/workshop with next level button."""
@@ -110,6 +125,7 @@ class Game:
                 self.running = False
             
             if self.game_state == "main_menu":
+                self._handle_debug_menu_input(event)
                 result = self.main_menu.handle_event(event)
                 if result == 'play':
                     self.game_state = "level_select"
@@ -179,9 +195,6 @@ class Game:
                 pygame.mouse.set_visible(True)
             elif event.key == pygame.K_p:
                 self.paused = not self.paused
-            elif event.key == pygame.K_e:
-                # Debug: add 1000 orbs
-                self.orb_manager.total_orbs += 1000
         
         elif event.type == pygame.MOUSEMOTION:
             self.player.handle_mouse(event.pos)
@@ -301,93 +314,94 @@ class Game:
         
         # Check dart collisions with balloons
         darts = self.player.dart_manager.get_darts()
-        for dart in darts[:]:
-            for balloon in self.balloon_manager.balloons[:]:
-                if self._check_collision(dart, balloon):
-                    # Check if balloon will be fully popped (red tier = 4)
-                    will_pop = balloon.tier >= 4  # Red is tier 4, pink=0
-                    
-                    # Pop balloon with subtle screen shake (10% of original)
-                    self.balloon_manager.pop_balloon(balloon, dart.x, dart.y)
-                    self.screen_shake.trigger(intensity=0.8, duration=0.6)
-                    self.player.dart_manager.remove_dart(dart)
-                    
-                    # Track for level completion (only count when fully popped)
-                    if will_pop:
-                        self.level_manager.balloon_popped()
-                    
-                    break
+        if darts:
+            balloon_candidates = [b for b in self.balloon_manager.balloons if not b.popped]
+            self._collision_checked.clear()
+            for dart in darts[:]:
+                for balloon in balloon_candidates:
+                    pair_key = (id(dart), id(balloon))
+                    if pair_key in self._collision_checked:
+                        continue
+                    self._collision_checked.add(pair_key)
+                    if self._check_collision(dart, balloon):
+                        # Check if balloon will be fully popped (red tier = 4)
+                        will_pop = balloon.tier >= 4  # Red is tier 4, pink=0
+                        
+                        # Pop balloon with subtle screen shake (10% of original)
+                        self.balloon_manager.pop_balloon(balloon, dart.x, dart.y)
+                        self.screen_shake.trigger(intensity=0.8, duration=0.6)
+                        self.player.dart_manager.remove_dart(dart)
+                        
+                        # Track for level completion (only count when fully popped)
+                        if will_pop:
+                            self.level_manager.balloon_popped()
+                        
+                        break
         
         # Check laser collisions
         if self.player.has_laser and self.player.laser and self.player.laser.active:
             from .constants import LASER_POP_DELAY
             laser = self.player.laser
-            for balloon in self.balloon_manager.balloons[:]:
-                if not balloon.popped and abs(balloon.x - laser.x) < balloon.radius + 5:
-                    if balloon.y < laser.y_start: # Laser shoots up
-                        b_id = id(balloon)
-                        if b_id not in laser.pop_timers:
-                            laser.pop_timers[b_id] = 0
-                        
-                        laser.pop_timers[b_id] += dt * 1000
-                        
-                        # Visual effect for laser hitting balloon
-                        laser.emit_hit_particles(self.screen, balloon.y)
-                        
-                        if laser.pop_timers[b_id] >= LASER_POP_DELAY:
-                            will_pop = balloon.tier >= 4
-                            self.balloon_manager.pop_balloon(balloon, balloon.x, balloon.y)
-                            if will_pop:
-                                self.level_manager.balloon_popped()
-                            # Reset timer for this balloon (it might become a lower tier balloon)
-                            laser.pop_timers[b_id] = 0
+            active_balloons = [b for b in self.balloon_manager.balloons if not b.popped]
+            for balloon in active_balloons:
+                if abs(balloon.x - laser.x) < balloon.radius + 5 and balloon.y < laser.y_start:
+                    b_id = id(balloon)
+                    laser.pop_timers[b_id] = laser.pop_timers.get(b_id, 0) + dt * 1000
+                    
+                    # Visual effect for laser hitting balloon
+                    laser.emit_hit_particles(self.screen, balloon.y)
+                    
+                    if laser.pop_timers[b_id] >= LASER_POP_DELAY:
+                        will_pop = balloon.tier >= 4
+                        self.balloon_manager.pop_balloon(balloon, balloon.x, balloon.y)
+                        if will_pop:
+                            self.level_manager.balloon_popped()
+                        laser.pop_timers[b_id] = 0
         
         # Check missile collisions
         if self.player.has_missile:
             missile_manager = self.player.missile_manager
+            active_balloons = [b for b in self.balloon_manager.balloons if not b.popped]
             for missile in missile_manager.missiles[:]:
-                for balloon in self.balloon_manager.balloons[:]:
-                    if not balloon.popped:
-                        dx = missile.x - balloon.x
-                        dy = missile.y - balloon.y
-                        dist = (dx * dx + dy * dy) ** 0.5
-                        if dist < balloon.radius + 10:
-                            # Explode!
-                            missile_manager.trigger_explosion(missile.x, missile.y, missile.aoe_radius)
-                            
-                            # AoE damage
-                            for b in self.balloon_manager.balloons[:]:
-                                if not b.popped:
-                                    bdx = missile.x - b.x
-                                    bdy = missile.y - b.y
-                                    bdist = (bdx * bdx + bdy * bdy) ** 0.5
-                                    if bdist < missile.aoe_radius:
-                                        # Damage balloon
-                                        will_pop = b.tier >= 4
-                                        self.balloon_manager.pop_balloon(b, b.x, b.y)
-                                        if will_pop:
-                                            self.level_manager.balloon_popped()
-                            
-                            if missile in missile_manager.missiles:
-                                missile_manager.missiles.remove(missile)
-                            break
+                for balloon in active_balloons:
+                    dx = missile.x - balloon.x
+                    dy = missile.y - balloon.y
+                    dist = (dx * dx + dy * dy) ** 0.5
+                    if dist < balloon.radius + 10:
+                        # Explode!
+                        missile_manager.trigger_explosion(missile.x, missile.y, missile.aoe_radius)
+                        
+                        # AoE damage
+                        for b in active_balloons:
+                            bdx = missile.x - b.x
+                            bdy = missile.y - b.y
+                            bdist = (bdx * bdx + bdy * bdy) ** 0.5
+                            if bdist < missile.aoe_radius:
+                                will_pop = b.tier >= 4
+                                self.balloon_manager.pop_balloon(b, b.x, b.y)
+                                if will_pop:
+                                    self.level_manager.balloon_popped()
+                        
+                        if missile in missile_manager.missiles:
+                            missile_manager.missiles.remove(missile)
+                        break
         
         # Check boomerang collisions
         if self.player.has_boomerang:
             bm = self.player.boomerang_manager
+            active_balloons = [b for b in self.balloon_manager.balloons if not b.popped]
             for boomerang in bm.boomerangs:
-                for balloon in self.balloon_manager.balloons[:]:
-                    if not balloon.popped:
-                        dx = boomerang.x - balloon.x
-                        dy = boomerang.y - balloon.y
-                        dist = (dx * dx + dy * dy) ** 0.5
-                        if dist < balloon.radius + 15:
-                            # Damage balloon
-                            will_pop = balloon.tier >= 4
-                            self.balloon_manager.pop_balloon(balloon, balloon.x, balloon.y)
-                            if will_pop:
-                                self.level_manager.balloon_popped()
-                            # Boomerang pierces, so no break here
+                for balloon in active_balloons:
+                    dx = boomerang.x - balloon.x
+                    dy = boomerang.y - balloon.y
+                    dist = (dx * dx + dy * dy) ** 0.5
+                    if dist < balloon.radius + 15:
+                        # Damage balloon
+                        will_pop = balloon.tier >= 4
+                        self.balloon_manager.pop_balloon(balloon, balloon.x, balloon.y)
+                        if will_pop:
+                            self.level_manager.balloon_popped()
+                        # Boomerang pierces, so no break here
 
         # Check lightning strikes
         if self.player.has_lightning and self.player.lightning_manager.can_strike():
@@ -495,13 +509,13 @@ class Game:
             elif not target and wingman.can_shoot():
                 wingman.reset_cooldown(base_cooldown)
 
-    def draw(self) -> None:
+    def draw(self, dt: float) -> None:
         """Draw everything based on current state."""
         # Get shake offset
         shake_offset = self.screen_shake.apply(self.screen)
         
         if self.game_state == "main_menu":
-            self.main_menu.draw(self.screen)
+            self.main_menu.draw(self.screen, dt)
         elif self.game_state == "level_select":
             # Update level select with current unlock progress
             self.level_select.unlocked_levels = self.unlocked_levels
@@ -536,11 +550,11 @@ class Game:
     def run(self) -> None:
         """Main game loop."""
         while self.running:
-            dt = self.clock.tick(FPS) / 1000.0
+            dt = self.clock.tick(0) / 1000.0
             
             self.handle_events()
             self.update(dt)
-            self.draw()
+            self.draw(dt)
         
         pygame.quit()
         sys.exit()

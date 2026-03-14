@@ -26,7 +26,7 @@ __all__ = [
     # Effects
     "Particle", "ParticleSystem", "EngineGlow", "MuzzleFlash", "DartTrail",
     # Constants
-    "SCREEN_WIDTH", "SCREEN_HEIGHT", "FPS",
+    "SCREEN_WIDTH", "SCREEN_HEIGHT",
     # Utils
     "clamp", "lerp", "lerp_color", "distance", "angle_to",
     "random_in_range", "random_color_variation", "wrap_position", "off_screen",

@@ -7,7 +7,7 @@ from typing import List, Tuple, Optional
 from dataclasses import dataclass, field
 
 from .constants import (
-    SCREEN_WIDTH, SCREEN_HEIGHT, FPS,
+    SCREEN_WIDTH, SCREEN_HEIGHT,
     COLOR_WHITE, COLOR_YELLOW, COLOR_ORANGE, COLOR_RED,
     COLOR_BLUE, COLOR_BLACK, PARTICLE_SIZE
 )
