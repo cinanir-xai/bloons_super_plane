@@ -472,19 +472,80 @@ class Shop:
         surface.blit(instr, instr_rect)
     
     def _draw_icon(self, surface: pygame.Surface, cx: int, cy: int, index: int) -> None:
-        """Draw a small icon for each upgrade."""
-        if index == 0:  # Dart
-            pygame.draw.polygon(surface, COLOR_WHITE, [
-                (cx, cy - 10), (cx + 4, cy), (cx + 2, cy),
-                (cx + 2, cy + 8), (cx - 2, cy + 8),
-                (cx - 2, cy), (cx - 4, cy)
+        """Draw an enhanced small icon for each upgrade."""
+        if index == 0:  # Dart - detailed arrow
+            # Glow
+            pygame.draw.polygon(surface, (255, 255, 255, 100), [
+                (cx, cy - 12), (cx + 5, cy - 2), (cx + 2, cy - 2),
+                (cx + 2, cy + 10), (cx - 2, cy + 10),
+                (cx - 2, cy - 2), (cx - 5, cy - 2)
             ])
-        elif index == 1:  # Laser
-            pygame.draw.rect(surface, COLOR_CYAN, (cx - 1, cy - 15, 2, 30))
-            pygame.draw.circle(surface, COLOR_CYAN, (cx, cy), 6)
-        elif index == 2:  # Missile
-            pygame.draw.rect(surface, COLOR_WHITE, (cx - 3, cy - 8, 6, 16))
-            pygame.draw.rect(surface, COLOR_RED, (cx - 3, cy - 8, 6, 4))
-        elif index == 3:  # Boomerang
-            points = [(cx, cy - 10), (cx + 10, cy + 10), (cx, cy + 5), (cx - 10, cy + 10)]
+            # Main dart
+            pygame.draw.polygon(surface, COLOR_WHITE, [
+                (cx, cy - 10), (cx + 4, cy - 2), (cx + 2, cy - 2),
+                (cx + 2, cy + 8), (cx - 2, cy + 8),
+                (cx - 2, cy - 2), (cx - 4, cy - 2)
+            ])
+            pygame.draw.polygon(surface, COLOR_BLACK, [
+                (cx, cy - 10), (cx + 4, cy - 2), (cx + 2, cy - 2),
+                (cx + 2, cy + 8), (cx - 2, cy + 8),
+                (cx - 2, cy - 2), (cx - 4, cy - 2)
+            ], 1)
+            # Yellow tip
+            pygame.draw.polygon(surface, COLOR_YELLOW, [
+                (cx, cy - 10), (cx + 4, cy - 2), (cx - 4, cy - 2)
+            ])
+            # Red fletching
+            pygame.draw.rect(surface, (200, 50, 50), (cx - 4, cy + 6, 8, 4))
+            
+        elif index == 1:  # Laser - glowing beam
+            # Outer glow
+            pygame.draw.line(surface, (0, 200, 255), (cx, cy - 18), (cx, cy + 18), 6)
+            # Main beam
+            pygame.draw.line(surface, COLOR_CYAN, (cx, cy - 15), (cx, cy + 15), 4)
+            # Inner core
+            pygame.draw.line(surface, COLOR_WHITE, (cx, cy - 15), (cx, cy + 15), 2)
+            # Energy orb at center
+            pygame.draw.circle(surface, COLOR_CYAN, (cx, cy), 8)
+            pygame.draw.circle(surface, COLOR_WHITE, (cx, cy), 4)
+            # Sparkles
+            pygame.draw.circle(surface, (255, 255, 255), (cx - 2, cy - 2), 2)
+            
+        elif index == 2:  # Missile - detailed rocket
+            # Body
+            pygame.draw.rect(surface, COLOR_WHITE, (cx - 4, cy - 10, 8, 20))
+            # Metallic shine
+            pygame.draw.rect(surface, (230, 230, 230), (cx - 4, cy - 10, 2, 20))
+            # Red nose cone
+            pygame.draw.polygon(surface, COLOR_RED, [
+                (cx, cy - 14), (cx - 4, cy - 10), (cx + 4, cy - 10)
+            ])
+            pygame.draw.polygon(surface, COLOR_BLACK, [
+                (cx, cy - 14), (cx - 4, cy - 10), (cx + 4, cy - 10)
+            ], 1)
+            # Fins
+            pygame.draw.polygon(surface, (180, 50, 50), [
+                (cx - 4, cy + 6), (cx - 8, cy + 12), (cx - 4, cy + 10)
+            ])
+            pygame.draw.polygon(surface, (180, 50, 50), [
+                (cx + 4, cy + 6), (cx + 8, cy + 12), (cx + 4, cy + 10)
+            ])
+            # Exhaust
+            pygame.draw.circle(surface, (255, 150, 50), (cx, cy + 12), 4)
+            pygame.draw.circle(surface, (255, 255, 200), (cx, cy + 12), 2)
+            
+        elif index == 3:  # Boomerang - detailed V
+            # Outer glow
+            pygame.draw.polygon(surface, (139, 69, 19, 80), [
+                (cx, cy - 12), (cx + 12, cy + 12), (cx, cy + 6), (cx - 12, cy + 12)
+            ])
+            # Main shape
+            points = [(cx, cy - 10), (cx + 10, cy + 10), (cx, cy + 4), (cx - 10, cy + 10)]
             pygame.draw.polygon(surface, COLOR_BROWN, points)
+            # Wood grain
+            pygame.draw.line(surface, (100, 60, 30), (cx - 8, cy + 2), (cx + 8, cy + 2), 1)
+            pygame.draw.line(surface, (100, 60, 30), (cx - 6, cy + 6), (cx + 6, cy + 6), 1)
+            # Black border
+            pygame.draw.polygon(surface, COLOR_BLACK, points, 2)
+            # Highlight
+            pygame.draw.line(surface, (180, 100, 60), (cx - 8, cy - 8), (cx + 8, cy - 8), 2)

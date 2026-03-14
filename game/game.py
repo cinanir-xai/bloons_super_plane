@@ -255,9 +255,9 @@ class Game:
                     # Check if balloon will be fully popped (red tier = 4)
                     will_pop = balloon.tier >= 4  # Red is tier 4, pink=0
                     
-                    # Pop balloon with screen shake
+                    # Pop balloon with subtle screen shake (10% of original)
                     self.balloon_manager.pop_balloon(balloon, dart.x, dart.y)
-                    self.screen_shake.trigger(intensity=8, duration=6)
+                    self.screen_shake.trigger(intensity=0.8, duration=0.6)
                     self.player.dart_manager.remove_dart(dart)
                     
                     # Track for level completion (only count when fully popped)

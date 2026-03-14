@@ -33,22 +33,43 @@ class Boomerang:
         self.y = player_y + math.sin(rad) * BOOMERANG_ORBIT_RADIUS
 
     def draw(self, surface: pygame.Surface) -> None:
-        """Draw the V-shaped boomerang."""
+        """Draw the boomerang with enhanced visual appeal."""
         # Create a surface for rotation
-        size = int(max(BOOMERANG_WIDTH, BOOMERANG_HEIGHT) * 1.5)
+        size = int(max(BOOMERANG_WIDTH, BOOMERANG_HEIGHT) * 1.8)
         temp_surface = pygame.Surface((size, size), pygame.SRCALPHA)
         
-        # Draw V shape on temp surface
+        # Draw boomerang on temp surface
         cx, cy = size // 2, size // 2
         w, h = BOOMERANG_WIDTH // 2, BOOMERANG_HEIGHT // 2
+        
+        # Main V shape with curved wings
         points = [
-            (cx, cy - h), # Top
+            (cx, cy - h), # Top point
             (cx + w, cy + h), # Bottom Right
             (cx, cy + h // 2), # Middle Inner
             (cx - w, cy + h) # Bottom Left
         ]
+        
+        # Outer glow
+        pygame.draw.polygon(temp_surface, (139, 69, 19, 100), 
+                           [(p[0]+2, p[1]+2) for p in points])
+        
+        # Main shape
         pygame.draw.polygon(temp_surface, COLOR_BROWN, points)
+        
+        # Wood grain lines
+        for i in range(4):
+            pygame.draw.line(temp_surface, (100, 50, 20),
+                           (cx - w//2 + i * 5, cy),
+                           (cx + w//2 - i * 5, cy), 1)
+        
+        # Black border
         pygame.draw.polygon(temp_surface, COLOR_BLACK, points, 2)
+        
+        # Highlight on top
+        pygame.draw.line(temp_surface, (180, 100, 60),
+                        (cx - w//2 + 2, cy - h + 2),
+                        (cx + w//2 - 2, cy - h + 2), 2)
         
         # Rotate the surface
         rotated_surface = pygame.transform.rotate(temp_surface, -self.spin_angle)
@@ -107,25 +128,73 @@ class Missile:
                           MISSILE_WIDTH, MISSILE_HEIGHT)
 
     def draw(self, surface: pygame.Surface) -> None:
-        """Draw the missile with trail."""
+        """Draw the missile with enhanced visual appeal."""
         # Draw trail first
         self.trail.draw(surface)
         
-        # White body
-        pygame.draw.rect(surface, COLOR_WHITE, 
-                        (self.x - MISSILE_WIDTH // 2, self.y - MISSILE_HEIGHT // 2, 
-                         MISSILE_WIDTH, MISSILE_HEIGHT))
-        # Red tip
-        pygame.draw.rect(surface, COLOR_RED,
-                        (self.x - MISSILE_WIDTH // 2, self.y - MISSILE_HEIGHT // 2,
-                         MISSILE_WIDTH, 8))
-        # Fins
-        pygame.draw.rect(surface, (150, 150, 150),
-                        (self.x - MISSILE_WIDTH // 2 - 4, self.y + MISSILE_HEIGHT // 2 - 6,
-                         4, 6))
-        pygame.draw.rect(surface, (150, 150, 150),
-                        (self.x + MISSILE_WIDTH // 2, self.y + MISSILE_HEIGHT // 2 - 6,
-                         4, 6))
+        cx, cy = int(self.x), int(self.y)
+        w, h = MISSILE_WIDTH, MISSILE_HEIGHT
+        
+        # Outer glow for rocket
+        glow_surface = pygame.Surface((w + 10, h + 10), pygame.SRCALPHA)
+        pygame.draw.ellipse(glow_surface, (255, 255, 255, 30), (5, 5, w, h))
+        surface.blit(glow_surface, (cx - w//2 - 5, cy - h//2 - 5))
+        
+        # Main body (white with gradient)
+        pygame.draw.rect(surface, COLOR_WHITE, (cx - w//2, cy - h//2, w, h))
+        
+        # Metallic shine on left side
+        pygame.draw.rect(surface, (230, 230, 230), (cx - w//2, cy - h//2, w//3, h))
+        
+        # Red tip (nose cone)
+        pygame.draw.polygon(surface, COLOR_RED, [
+            (cx, cy - h//2 - 6),
+            (cx - w//2, cy - h//2),
+            (cx + w//2, cy - h//2)
+        ])
+        pygame.draw.polygon(surface, COLOR_BLACK, [
+            (cx, cy - h//2 - 6),
+            (cx - w//2, cy - h//2),
+            (cx + w//2, cy - h//2)
+        ], 1)
+        
+        # Body stripes
+        for i in range(3):
+            stripe_y = cy - h//4 + i * (h//4)
+            pygame.draw.line(surface, (200, 200, 200), 
+                           (cx - w//2 + 1, stripe_y), (cx + w//2 - 1, stripe_y), 1)
+        
+        # Black border
+        pygame.draw.rect(surface, COLOR_BLACK, (cx - w//2, cy - h//2, w, h), 2)
+        
+        # Large fins
+        fin_color = (180, 50, 50)
+        # Left fin
+        pygame.draw.polygon(surface, fin_color, [
+            (cx - w//2, cy + h//2 - 4),
+            (cx - w//2 - 8, cy + h//2 + 8),
+            (cx - w//2, cy + h//2)
+        ])
+        pygame.draw.polygon(surface, COLOR_BLACK, [
+            (cx - w//2, cy + h//2 - 4),
+            (cx - w//2 - 8, cy + h//2 + 8),
+            (cx - w//2, cy + h//2)
+        ], 1)
+        # Right fin
+        pygame.draw.polygon(surface, fin_color, [
+            (cx + w//2, cy + h//2 - 4),
+            (cx + w//2 + 8, cy + h//2 + 8),
+            (cx + w//2, cy + h//2)
+        ])
+        pygame.draw.polygon(surface, COLOR_BLACK, [
+            (cx + w//2, cy + h//2 - 4),
+            (cx + w//2 + 8, cy + h//2 + 8),
+            (cx + w//2, cy + h//2)
+        ], 1)
+        
+        # Exhaust glow
+        pygame.draw.circle(surface, (255, 200, 50), (cx, cy + h//2 + 4), 6)
+        pygame.draw.circle(surface, (255, 255, 200), (cx, cy + h//2 + 4), 3)
 
 
 class MissileManager:
@@ -208,34 +277,48 @@ class Laser:
             pygame.draw.rect(surface, COLOR_WHITE, (px + 1, py + 1, size - 2, size - 2))
 
     def draw(self, surface: pygame.Surface) -> None:
-        """Draw the laser beam."""
+        """Draw the laser beam with enhanced visual appeal."""
         if not self.active:
-            # Draw a small "charging" indicator if close to active
+            # Draw a pulsing "charging" indicator if close to active
             if self.cooldown_timer < 1000:
-                alpha = int(255 * (1 - self.cooldown_timer / 1000))
-                s = pygame.Surface((10, 10), pygame.SRCALPHA)
-                pygame.draw.circle(s, (*COLOR_CYAN, alpha), (5, 5), 5)
-                surface.blit(s, (int(self.x - 5), int(self.y_start - 5)))
+                pulse = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() * 0.01)
+                alpha = int(255 * pulse * (1 - self.cooldown_timer / 1000))
+                s = pygame.Surface((20, 20), pygame.SRCALPHA)
+                pygame.draw.circle(s, (*COLOR_CYAN, alpha), (10, 10), 10)
+                pygame.draw.circle(s, (*COLOR_WHITE, alpha), (10, 10), 5)
+                surface.blit(s, (int(self.x - 10), int(self.y_start - 10)))
             return
             
-        # Outer glow (thicker)
-        pygame.draw.line(surface, COLOR_CYAN, (self.x, self.y_start), (self.x, self.y_end), LASER_WIDTH + 6)
+        import random
+        
+        # Outer glow (thickest)
+        pygame.draw.line(surface, (0, 200, 255, 80), (self.x, self.y_start), (self.x, self.y_end), LASER_WIDTH + 10)
+        # Medium glow
+        pygame.draw.line(surface, (0, 220, 255), (self.x, self.y_start), (self.x, self.y_end), LASER_WIDTH + 6)
         # Main beam
         pygame.draw.line(surface, COLOR_CYAN, (self.x, self.y_start), (self.x, self.y_end), LASER_WIDTH + 2)
-        # Inner core
+        # Inner bright core
         pygame.draw.line(surface, COLOR_WHITE, (self.x, self.y_start), (self.x, self.y_end), LASER_WIDTH)
         
-        # Add some flickering and base effect
-        import random
-        if random.random() > 0.3:
-            # Base flare
-            r = random.randint(8, 14)
-            pygame.draw.circle(surface, COLOR_CYAN, (int(self.x), int(self.y_start)), r)
-            pygame.draw.circle(surface, COLOR_WHITE, (int(self.x), int(self.y_start)), r // 2)
+        # Animated base flare
+        if random.random() > 0.2:
+            # Base flare with pulse
+            pulse_r = random.randint(10, 18)
+            pygame.draw.circle(surface, (0, 255, 255), (int(self.x), int(self.y_start)), pulse_r)
+            pygame.draw.circle(surface, COLOR_WHITE, (int(self.x), int(self.y_start)), pulse_r // 2)
+            pygame.draw.circle(surface, (255, 255, 255), (int(self.x), int(self.y_start)), pulse_r // 4)
             
-            # Beam jitter
-            off = random.uniform(-1, 1)
-            pygame.draw.line(surface, COLOR_WHITE, (self.x + off, self.y_start), (self.x + off, self.y_end), 1)
+            # Beam jitter for energy feel
+            for _ in range(2):
+                off = random.uniform(-2, 2)
+                pygame.draw.line(surface, (200, 255, 255), 
+                               (self.x + off, self.y_start), 
+                               (self.x + off, self.y_end), 1)
+        
+        # Energy particles along beam occasionally
+        if random.random() > 0.7:
+            py = random.uniform(self.y_end, self.y_start)
+            pygame.draw.circle(surface, COLOR_WHITE, (int(self.x), int(py)), 2)
 
 
 @dataclass
@@ -266,19 +349,47 @@ class Dart:
                           DART_WIDTH, DART_HEIGHT)
 
     def draw(self, surface: pygame.Surface) -> None:
-        """Draw the dart with trail."""
+        """Draw the dart with enhanced visual appeal."""
         # Draw trail first
         self.trail.draw(surface)
         
-        # Draw clean rectangular dart pointing UP
-        # Main body
-        pygame.draw.rect(surface, COLOR_WHITE, 
-                        (self.x - DART_WIDTH // 2, self.y - DART_HEIGHT // 2, 
-                         DART_WIDTH, DART_HEIGHT))
-        # Tip highlight
-        pygame.draw.rect(surface, COLOR_YELLOW,
-                        (self.x - DART_WIDTH // 2, self.y - DART_HEIGHT // 2,
-                         DART_WIDTH, 4))
+        # Draw dart pointing UP with detailed design
+        cx, cy = int(self.x), int(self.y)
+        w, h = DART_WIDTH, DART_HEIGHT
+        
+        # Outer glow
+        glow_surface = pygame.Surface((w + 4, h + 4), pygame.SRCALPHA)
+        pygame.draw.rect(glow_surface, (255, 255, 255, 50), (2, 2, w, h))
+        surface.blit(glow_surface, (cx - w//2 - 2, cy - h//2 - 2))
+        
+        # Main body with gradient
+        pygame.draw.rect(surface, COLOR_WHITE, (cx - w//2, cy - h//2, w, h))
+        
+        # Metallic shine gradient
+        for i in range(w//2):
+            alpha = int(100 * (1 - i / (w//2)))
+            pygame.draw.line(surface, (255, 255, 255), 
+                           (cx - w//2 + i, cy - h//2), 
+                           (cx - w//2 + i, cy + h//2), 1)
+        
+        # Yellow tip (sharp point)
+        pygame.draw.polygon(surface, COLOR_YELLOW, [
+            (cx, cy - h//2 - 4),
+            (cx - w//2, cy - h//2),
+            (cx + w//2, cy - h//2)
+        ])
+        pygame.draw.polygon(surface, COLOR_BLACK, [
+            (cx, cy - h//2 - 4),
+            (cx - w//2, cy - h//2),
+            (cx + w//2, cy - h//2)
+        ], 1)
+        
+        # Black border
+        pygame.draw.rect(surface, COLOR_BLACK, (cx - w//2, cy - h//2, w, h), 2)
+        
+        # Fletching at back
+        pygame.draw.rect(surface, (200, 50, 50), (cx - w//2 - 2, cy + h//2 - 4, w + 4, 6))
+        pygame.draw.rect(surface, COLOR_BLACK, (cx - w//2 - 2, cy + h//2 - 4, w + 4, 6), 1)
 
     @classmethod
     def create_from_wing(cls, x: float, y: float) -> 'Dart':
