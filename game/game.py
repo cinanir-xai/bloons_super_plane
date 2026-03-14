@@ -96,6 +96,8 @@ class Game:
             boomerang_level=self.player.boomerang_level,
             lightning_level=self.player.lightning_level,
             wingman_level=self.player.wingman_level,
+            orb_magnet_level=self.orb_manager.magnet_level,
+            orb_luck_level=self.orb_manager.orb_luck_level,
             show_next_level=True,
             level_num=self.level_manager.current_level_num,
             has_next=self.level_manager.has_next_level()
@@ -157,6 +159,12 @@ class Game:
                     self.shop.buy_upgrade('lightning')
                 elif result == 'buy_wingman':
                     self.shop.buy_upgrade('wingman')
+                elif result == 'buy_orb_magnet':
+                    self.shop.buy_upgrade('orb_magnet')
+                    self.orb_manager.set_magnet_level(self.shop.orb_magnet_level)
+                elif result == 'buy_orb_luck':
+                    self.shop.buy_upgrade('orb_luck')
+                    self.orb_manager.set_orb_luck_level(self.shop.orb_luck_level)
             
             elif self.game_state == "playing":
                 self._handle_playing_events(event)
@@ -238,12 +246,16 @@ class Game:
             boomerang_level=self.player.boomerang_level,
             lightning_level=self.player.lightning_level,
             wingman_level=self.player.wingman_level,
+            orb_magnet_level=self.orb_manager.magnet_level,
+            orb_luck_level=self.orb_manager.orb_luck_level,
             show_next_level=False
         )
 
     def _sync_player_upgrades(self) -> None:
         """Sync player upgrades from shop."""
         self.orb_manager.total_orbs = self.shop.total_orbs
+        self.orb_manager.set_magnet_level(self.shop.orb_magnet_level)
+        self.orb_manager.set_orb_luck_level(self.shop.orb_luck_level)
         # Apply any new upgrades
         while self.player.laser_level < self.shop.laser_level:
             self.player.upgrade_laser()
@@ -260,6 +272,9 @@ class Game:
                 self.player.dart_manager.dart_speed_level += 1
         else:
             self.player.dart_manager.dart_speed_level = self.shop.dart_speed_level
+
+        self.orb_manager.set_magnet_level(self.shop.orb_magnet_level)
+        self.orb_manager.set_orb_luck_level(self.shop.orb_luck_level)
 
     def update(self, dt: float) -> None:
         """Update game state."""

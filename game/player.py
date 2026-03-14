@@ -174,7 +174,8 @@ class Player:
         self.shoot_timer -= dt * 1000
         if self.shoot_timer <= 0:
             self.shoot()
-            self.shoot_timer = DART_COOLDOWN
+            speed_level = self.dart_manager.dart_speed_level
+            self.shoot_timer = DART_COOLDOWN * (0.8 ** speed_level)
 
         if self.has_laser and self.laser:
             self.laser.update(self.x, self.y - self.height // 2, dt)

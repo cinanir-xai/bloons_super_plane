@@ -10,7 +10,8 @@ from .constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, BALLOON_SPEED,
     BALLOON_BASE_RADIUS,
     COLOR_RED, COLOR_BLUE, COLOR_GREEN, COLOR_YELLOW, COLOR_PINK,
-    COLOR_WHITE, COLOR_BLACK, PARTICLE_SIZE
+    COLOR_WHITE, COLOR_BLACK, PARTICLE_SIZE,
+    ORB_LUCK_BASE_CHANCE, ORB_LUCK_CHANCE_PER_LEVEL
 )
 from .effects import ParticleSystem
 
@@ -163,6 +164,14 @@ class BalloonManager:
         
         # Spawn orbs (2 per layer popped)
         self.orb_manager.spawn_orbs(x, y, count=2)
+
+        # Orb luck bonus drops
+        if self.orb_manager.orb_luck_level > 0:
+            extra_chance = ORB_LUCK_BASE_CHANCE + ORB_LUCK_CHANCE_PER_LEVEL * (self.orb_manager.orb_luck_level - 1)
+            extra_max = self.orb_manager.orb_luck_level
+            if random.random() < extra_chance:
+                extra_count = random.randint(1, extra_max)
+                self.orb_manager.spawn_orbs(x, y, count=extra_count)
 
         # Downgrade or remove
         if not balloon.take_damage():

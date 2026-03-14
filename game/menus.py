@@ -574,6 +574,7 @@ class Shop:
     def __init__(self, total_orbs: int = 0, dart_speed_level: int = 0,
                  laser_level: int = 0, missile_level: int = 0, boomerang_level: int = 0,
                  lightning_level: int = 0, wingman_level: int = 0,
+                 orb_magnet_level: int = 0, orb_luck_level: int = 0,
                  show_next_level: bool = False, level_num: int = 1, has_next: bool = True):
         self.total_orbs = total_orbs
         self.dart_speed_level = dart_speed_level
@@ -582,6 +583,8 @@ class Shop:
         self.boomerang_level = boomerang_level
         self.lightning_level = lightning_level
         self.wingman_level = wingman_level
+        self.orb_magnet_level = orb_magnet_level
+        self.orb_luck_level = orb_luck_level
         self.selected_option = 0  # 0 = back
         self.show_next_level = show_next_level
         self.level_num = level_num
@@ -594,7 +597,9 @@ class Shop:
             MISSILE_UNLOCK_COST, MISSILE_BASE_COST, MISSILE_COST_MULTIPLIER,
             BOOMERANG_UNLOCK_COST, BOOMERANG_BASE_COST, BOOMERANG_COST_MULTIPLIER,
             LIGHTNING_UNLOCK_COST, LIGHTNING_BASE_COST, LIGHTNING_COST_MULTIPLIER,
-            WINGMAN_UNLOCK_COST, WINGMAN_BASE_COST, WINGMAN_COST_MULTIPLIER
+            WINGMAN_UNLOCK_COST, WINGMAN_BASE_COST, WINGMAN_COST_MULTIPLIER,
+            ORB_MAGNET_UNLOCK_COST, ORB_MAGNET_BASE_COST, ORB_MAGNET_COST_MULTIPLIER,
+            ORB_LUCK_UNLOCK_COST, ORB_LUCK_BASE_COST, ORB_LUCK_COST_MULTIPLIER
         )
         
         # Dart: unlocked from beginning, upgrades start at 100, increase by 50%
@@ -636,6 +641,20 @@ class Shop:
         else:
             self.wingman_cost = int(WINGMAN_BASE_COST * (WINGMAN_COST_MULTIPLIER ** (wingman_level - 1)))
         self.can_buy_wingman = self.total_orbs >= self.wingman_cost
+
+        # Orb Magnet: 200 to unlock, then 100 * 1.5^(level-1) for upgrades
+        if orb_magnet_level == 0:
+            self.orb_magnet_cost = ORB_MAGNET_UNLOCK_COST
+        else:
+            self.orb_magnet_cost = int(ORB_MAGNET_BASE_COST * (ORB_MAGNET_COST_MULTIPLIER ** (orb_magnet_level - 1)))
+        self.can_buy_orb_magnet = self.total_orbs >= self.orb_magnet_cost
+
+        # Orb Luck: 200 to unlock, then 100 * 1.5^(level-1) for upgrades
+        if orb_luck_level == 0:
+            self.orb_luck_cost = ORB_LUCK_UNLOCK_COST
+        else:
+            self.orb_luck_cost = int(ORB_LUCK_BASE_COST * (ORB_LUCK_COST_MULTIPLIER ** (orb_luck_level - 1)))
+        self.can_buy_orb_luck = self.total_orbs >= self.orb_luck_cost
     
     def handle_event(self, event: pygame.event.Event) -> str:
         """Handle input. Returns 'buy_X', 'back', 'next_level', or 'none'."""
@@ -658,15 +677,15 @@ class Shop:
                     return 'next_level'
             
             # Check upgrade buttons
-            # 2x3 grid click detection
+            # 2x4 grid click detection (8 total)
             grid_start_x = 80
             grid_start_y = 170
             btn_width = 420
-            btn_height = 160
+            btn_height = 150
             col_gap = 80
-            row_gap = 30
+            row_gap = 24
             
-            for i in range(6):
+            for i in range(8):
                 col = i % 2
                 row = i // 2
                 bx = grid_start_x + col * (btn_width + col_gap)
@@ -685,6 +704,10 @@ class Shop:
                         return 'buy_lightning'
                     elif i == 5 and self.can_buy_wingman:
                         return 'buy_wingman'
+                    elif i == 6 and self.can_buy_orb_magnet:
+                        return 'buy_orb_magnet'
+                    elif i == 7 and self.can_buy_orb_luck:
+                        return 'buy_orb_luck'
         
         return 'none'
     
@@ -696,7 +719,9 @@ class Shop:
             MISSILE_UNLOCK_COST, MISSILE_BASE_COST, MISSILE_COST_MULTIPLIER,
             BOOMERANG_UNLOCK_COST, BOOMERANG_BASE_COST, BOOMERANG_COST_MULTIPLIER,
             LIGHTNING_UNLOCK_COST, LIGHTNING_BASE_COST, LIGHTNING_COST_MULTIPLIER,
-            WINGMAN_UNLOCK_COST, WINGMAN_BASE_COST, WINGMAN_COST_MULTIPLIER
+            WINGMAN_UNLOCK_COST, WINGMAN_BASE_COST, WINGMAN_COST_MULTIPLIER,
+            ORB_MAGNET_UNLOCK_COST, ORB_MAGNET_BASE_COST, ORB_MAGNET_COST_MULTIPLIER,
+            ORB_LUCK_UNLOCK_COST, ORB_LUCK_BASE_COST, ORB_LUCK_COST_MULTIPLIER
         )
         
         if upgrade_type == 'dart' and self.can_buy_dart_speed:
@@ -755,6 +780,24 @@ class Shop:
             else:
                 self.wingman_cost = int(WINGMAN_BASE_COST * (WINGMAN_COST_MULTIPLIER ** (self.wingman_level - 1)))
             self.can_buy_wingman = self.total_orbs >= self.wingman_cost
+            return True
+        elif upgrade_type == 'orb_magnet' and self.can_buy_orb_magnet:
+            self.total_orbs -= self.orb_magnet_cost
+            self.orb_magnet_level += 1
+            if self.orb_magnet_level == 1:
+                self.orb_magnet_cost = ORB_MAGNET_BASE_COST
+            else:
+                self.orb_magnet_cost = int(ORB_MAGNET_BASE_COST * (ORB_MAGNET_COST_MULTIPLIER ** (self.orb_magnet_level - 1)))
+            self.can_buy_orb_magnet = self.total_orbs >= self.orb_magnet_cost
+            return True
+        elif upgrade_type == 'orb_luck' and self.can_buy_orb_luck:
+            self.total_orbs -= self.orb_luck_cost
+            self.orb_luck_level += 1
+            if self.orb_luck_level == 1:
+                self.orb_luck_cost = ORB_LUCK_BASE_COST
+            else:
+                self.orb_luck_cost = int(ORB_LUCK_BASE_COST * (ORB_LUCK_COST_MULTIPLIER ** (self.orb_luck_level - 1)))
+            self.can_buy_orb_luck = self.total_orbs >= self.orb_luck_cost
             return True
         return False
     
@@ -817,7 +860,7 @@ class Shop:
         back_text = font_small.render("BACK", True, (200, 190, 180))
         surface.blit(back_text, (back_x + 15, back_y + 8))
         
-        # Upgrade items in 2x3 grid
+        # Upgrade items in 2x4 grid
         items = [
             ("Dart Speed +20%", self.dart_speed_level, self.dart_speed_cost, 
              self.can_buy_dart_speed, COLOR_WHITE, 
@@ -836,16 +879,22 @@ class Shop:
              "Strikes closest balloon and arcs to nearby ones"),
             ("Wingman Aces", self.wingman_level, self.wingman_cost,
              self.can_buy_wingman, (255, 120, 120),
-             "Deploys ally planes that shoot at closest balloons")
+             "Deploys ally planes that shoot at closest balloons"),
+            ("Orb Magnet", self.orb_magnet_level, self.orb_magnet_cost,
+             self.can_buy_orb_magnet, (120, 200, 255),
+             "Boosts orb magnet radius and pull strength by 25% per level"),
+            ("Orb Luck", self.orb_luck_level, self.orb_luck_cost,
+             self.can_buy_orb_luck, (255, 210, 120),
+             "Chance to spawn extra orbs when popping balloons")
         ]
         
-        # 2x3 grid layout
+        # 2x4 grid layout
         grid_start_x = 80
         grid_start_y = 170
         btn_width = 420
-        btn_height = 160
+        btn_height = 150
         col_gap = 80
-        row_gap = 30
+        row_gap = 24
         
         # Get mouse position for hover
         mx, my = pygame.mouse.get_pos()
@@ -930,10 +979,10 @@ class Shop:
             action_badge = font_tiny.render(action_text, True, action_color)
             surface.blit(action_badge, (info_x, info_y + 100))
         
-        # Tooltip panel below the 6 options grid
-        grid_end_y = grid_start_y + 3 * (btn_height + row_gap) - row_gap
+        # Tooltip panel below the 8 options grid
+        grid_end_y = grid_start_y + 4 * (btn_height + row_gap) - row_gap
         tooltip_x = 100
-        tooltip_y = grid_end_y + 20
+        tooltip_y = grid_end_y + 16
         tooltip_w = SCREEN_WIDTH - 200
         tooltip_h = 140
         
@@ -1006,6 +1055,10 @@ class Shop:
                 stats = ["Targets closest balloon", "+2 arcs per level", "-10% cooldown per level"]
             elif "Wingman" in name:
                 stats = ["Ally planes", "Shoots at half rate", "Targets closest balloon"]
+            elif "Orb Magnet" in name:
+                stats = ["+25% radius per level", "+25% pull strength", "Boosts orb pickup"]
+            elif "Orb Luck" in name:
+                stats = ["+20% base extra orb", "+5% chance per level", "+1 max extra per level"]
             else:
                 stats = []
             
@@ -1116,6 +1169,29 @@ class Shop:
             pygame.draw.rect(surface, (100, 200, 255), (cx - 5, cy - 12, 10, 10))
             pygame.draw.line(surface, (200, 200, 200), (cx - 12, cy - 26), (cx + 12, cy - 26), 3)
             pygame.draw.line(surface, (200, 200, 200), (cx, cy - 30), (cx, cy - 22), 3)
+        
+        elif index == 6:  # Orb Magnet
+            # Horseshoe magnet icon
+            pygame.draw.arc(surface, color, (cx - 25, cy - 25, 50, 50), 3.5, 5.9, 10)
+            pygame.draw.arc(surface, COLOR_BLACK, (cx - 25, cy - 25, 50, 50), 3.5, 5.9, 3)
+            pygame.draw.rect(surface, COLOR_WHITE, (cx - 26, cy + 5, 10, 18))
+            pygame.draw.rect(surface, COLOR_WHITE, (cx + 16, cy + 5, 10, 18))
+            pygame.draw.rect(surface, COLOR_BLACK, (cx - 26, cy + 5, 10, 18), 1)
+            pygame.draw.rect(surface, COLOR_BLACK, (cx + 16, cy + 5, 10, 18), 1)
+            pygame.draw.circle(surface, (200, 230, 255), (cx, cy - 10), 6)
+        
+        elif index == 7:  # Orb Luck
+            # Clover-like luck icon
+            pygame.draw.circle(surface, color, (cx - 8, cy - 6), 10)
+            pygame.draw.circle(surface, color, (cx + 8, cy - 6), 10)
+            pygame.draw.circle(surface, color, (cx - 8, cy + 8), 10)
+            pygame.draw.circle(surface, color, (cx + 8, cy + 8), 10)
+            pygame.draw.circle(surface, COLOR_BLACK, (cx - 8, cy - 6), 10, 1)
+            pygame.draw.circle(surface, COLOR_BLACK, (cx + 8, cy - 6), 10, 1)
+            pygame.draw.circle(surface, COLOR_BLACK, (cx - 8, cy + 8), 10, 1)
+            pygame.draw.circle(surface, COLOR_BLACK, (cx + 8, cy + 8), 10, 1)
+            pygame.draw.rect(surface, (80, 160, 80), (cx - 2, cy + 14, 4, 12))
+            pygame.draw.rect(surface, COLOR_BLACK, (cx - 2, cy + 14, 4, 12), 1)
     
     def _draw_icon(self, surface: pygame.Surface, cx: int, cy: int, index: int) -> None:
         """Draw an enhanced small icon for each upgrade."""
@@ -1221,3 +1297,26 @@ class Shop:
             # Propeller
             pygame.draw.line(surface, COLOR_WHITE, (cx - 6, cy - 10), (cx + 6, cy - 10), 2)
             pygame.draw.line(surface, COLOR_WHITE, (cx, cy - 14), (cx, cy - 6), 2)
+        
+        elif index == 6:  # Orb Magnet icon
+            # Magnet shape
+            pygame.draw.arc(surface, COLOR_CYAN, (cx - 10, cy - 10, 20, 20), 3.4, 5.9, 4)
+            pygame.draw.arc(surface, COLOR_BLACK, (cx - 10, cy - 10, 20, 20), 3.4, 5.9, 2)
+            pygame.draw.rect(surface, COLOR_WHITE, (cx - 11, cy + 2, 4, 8))
+            pygame.draw.rect(surface, COLOR_WHITE, (cx + 7, cy + 2, 4, 8))
+            pygame.draw.rect(surface, COLOR_BLACK, (cx - 11, cy + 2, 4, 8), 1)
+            pygame.draw.rect(surface, COLOR_BLACK, (cx + 7, cy + 2, 4, 8), 1)
+            pygame.draw.circle(surface, (180, 220, 255), (cx, cy - 2), 3)
+        
+        elif index == 7:  # Orb Luck icon
+            # Clover
+            pygame.draw.circle(surface, (120, 220, 120), (cx - 4, cy - 3), 5)
+            pygame.draw.circle(surface, (120, 220, 120), (cx + 4, cy - 3), 5)
+            pygame.draw.circle(surface, (120, 220, 120), (cx - 4, cy + 4), 5)
+            pygame.draw.circle(surface, (120, 220, 120), (cx + 4, cy + 4), 5)
+            pygame.draw.circle(surface, COLOR_BLACK, (cx - 4, cy - 3), 5, 1)
+            pygame.draw.circle(surface, COLOR_BLACK, (cx + 4, cy - 3), 5, 1)
+            pygame.draw.circle(surface, COLOR_BLACK, (cx - 4, cy + 4), 5, 1)
+            pygame.draw.circle(surface, COLOR_BLACK, (cx + 4, cy + 4), 5, 1)
+            pygame.draw.rect(surface, (80, 160, 80), (cx - 1, cy + 7, 2, 6))
+            pygame.draw.rect(surface, COLOR_BLACK, (cx - 1, cy + 7, 2, 6), 1)

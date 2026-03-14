@@ -12,6 +12,8 @@ from .constants import (
     ORB_COLLECTION_RADIUS
 )
 
+MAGNET_UPGRADE_SCALE = 1.25
+
 @dataclass
 class Orb:
     """A small yellow circular experience orb."""
@@ -22,7 +24,8 @@ class Orb:
     gravity: float = 0.35  # Gravity acceleration
     collected: bool = False
 
-    def update(self, dt: float, player_x: float, player_y: float) -> bool:
+    def update(self, dt: float, player_x: float, player_y: float,
+               magnet_level: int = 0) -> bool:
         """Update orb position with gravity and magnet effect."""
         # Apply gravity
         self.vy += self.gravity * dt * 60
@@ -31,9 +34,12 @@ class Orb:
         dy = player_y - self.y
         dist = math.sqrt(dx * dx + dy * dy)
 
-        if dist < ORB_MAGNET_RADIUS:
+        magnet_radius = ORB_MAGNET_RADIUS * (MAGNET_UPGRADE_SCALE ** magnet_level)
+        magnet_strength = ORB_MAGNET_STRENGTH * (MAGNET_UPGRADE_SCALE ** magnet_level)
+
+        if dist < magnet_radius:
             # Magnet effect - stronger pull
-            strength = (1.0 - dist / ORB_MAGNET_RADIUS) * ORB_MAGNET_STRENGTH
+            strength = (1.0 - dist / magnet_radius) * magnet_strength
             self.vx += (dx / dist) * strength * dt * 60
             self.vy += (dy / dist) * strength * dt * 60
 
@@ -82,6 +88,14 @@ class OrbManager:
     def __init__(self):
         self.orbs: List[Orb] = []
         self.total_orbs = 0
+        self.magnet_level = 0
+        self.orb_luck_level = 0
+
+    def set_magnet_level(self, level: int) -> None:
+        self.magnet_level = max(0, level)
+
+    def set_orb_luck_level(self, level: int) -> None:
+        self.orb_luck_level = max(0, level)
 
     def spawn_orbs(self, x: float, y: float, count: int = 2) -> None:
         """Spawn orbs at a position."""
@@ -97,7 +111,7 @@ class OrbManager:
         """Update all orbs and track collection."""
         new_orbs = []
         for orb in self.orbs:
-            if orb.update(dt, player_x, player_y):
+            if orb.update(dt, player_x, player_y, self.magnet_level):
                 new_orbs.append(orb)
             elif orb.collected:
                 self.total_orbs += 1
