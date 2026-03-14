@@ -10,10 +10,55 @@ from game.level_manager import LevelManager
 
 
 class MainMenu:
-    """Main menu screen with Play, Shop, and Quit options."""
+    """Main menu screen with Play, Shop, and Quit options and animated background."""
     
     def __init__(self):
         self.selected_option = 0  # 0 = Play, 1 = Shop, 2 = Quit
+        self._init_animations()
+    
+    def _init_animations(self):
+        """Initialize animated elements."""
+        import random
+        self.time_offset = random.randint(0, 10000)
+        
+        # Floating balloons with different properties
+        self.balloons = []
+        balloon_colors = [COLOR_PINK, COLOR_YELLOW, COLOR_GREEN, COLOR_BLUE, COLOR_RED, COLOR_ORANGE, COLOR_CYAN]
+        for i in range(15):
+            self.balloons.append({
+                'x': random.randint(50, SCREEN_WIDTH - 50),
+                'y': random.randint(100, SCREEN_HEIGHT - 150),
+                'size': random.randint(20, 40),
+                'color': random.choice(balloon_colors),
+                'vx': random.uniform(-0.3, 0.3),
+                'vy': random.uniform(-0.5, -0.2),  # Float upward
+                'bob_phase': random.uniform(0, 6.28),
+                'bob_speed': random.uniform(0.5, 1.5),
+                'bob_amplitude': random.uniform(10, 25)
+            })
+        
+        # Flying planes
+        self.planes = []
+        for i in range(4):
+            direction = 1 if i % 2 == 0 else -1
+            self.planes.append({
+                'x': -100 if direction == 1 else SCREEN_WIDTH + 100,
+                'y': random.randint(150, SCREEN_HEIGHT - 200),
+                'direction': direction,
+                'speed': random.uniform(1.5, 3.0),
+                'size': random.uniform(0.8, 1.2),
+                'color': random.choice([COLOR_RED, COLOR_BLUE, (100, 200, 100), (200, 150, 50)])
+            })
+        
+        # Clouds for depth
+        self.clouds = []
+        for i in range(8):
+            self.clouds.append({
+                'x': random.randint(-100, SCREEN_WIDTH + 100),
+                'y': random.randint(50, SCREEN_HEIGHT - 300),
+                'size': random.randint(60, 120),
+                'speed': random.uniform(0.1, 0.3)
+            })
         
     def handle_event(self, event: pygame.event.Event) -> str:
         """Handle input. Returns 'play', 'shop', 'quit', or 'none'."""
@@ -49,30 +94,99 @@ class MainMenu:
         
         return 'none'
     
+    def _update_animations(self):
+        """Update all animated elements."""
+        import math
+        t = pygame.time.get_ticks() / 1000.0
+        
+        # Update balloons
+        for balloon in self.balloons:
+            balloon['x'] += balloon['vx']
+            balloon['y'] += balloon['vy'] + math.sin(t * balloon['bob_speed'] + balloon['bob_phase']) * 0.1
+            
+            # Bobbing motion
+            balloon['y'] += math.sin(t * balloon['bob_speed'] + balloon['bob_phase']) * balloon['bob_amplitude'] * 0.02
+            
+            # Wrap around screen
+            if balloon['x'] < -50:
+                balloon['x'] = SCREEN_WIDTH + 50
+            elif balloon['x'] > SCREEN_WIDTH + 50:
+                balloon['x'] = -50
+            if balloon['y'] < -50:
+                balloon['y'] = SCREEN_HEIGHT + 50
+        
+        # Update planes
+        for plane in self.planes:
+            plane['x'] += plane['speed'] * plane['direction']
+            # Slight sine wave for flight path
+            plane['y'] += math.sin(t * 0.5 + plane['x'] * 0.01) * 0.3
+            
+            # Wrap around
+            if plane['direction'] == 1 and plane['x'] > SCREEN_WIDTH + 150:
+                plane['x'] = -150
+                plane['y'] = (plane['y'] + 200) % (SCREEN_HEIGHT - 300) + 100
+            elif plane['direction'] == -1 and plane['x'] < -150:
+                plane['x'] = SCREEN_WIDTH + 150
+                plane['y'] = (plane['y'] + 200) % (SCREEN_HEIGHT - 300) + 100
+        
+        # Update clouds
+        for cloud in self.clouds:
+            cloud['x'] += cloud['speed']
+            if cloud['x'] > SCREEN_WIDTH + 150:
+                cloud['x'] = -150
+    
     def draw(self, surface: pygame.Surface) -> None:
-        """Draw the main menu with title card."""
+        """Draw the main menu with animated background."""
+        # Update animations
+        self._update_animations()
+        
         # Dark sky background with gradient
         for y in range(SCREEN_HEIGHT):
             color = (10 + y // 30, 15 + y // 25, 30 + y // 20)
             pygame.draw.line(surface, color, (0, y), (SCREEN_WIDTH, y))
         
-        # Draw stars
-        import random
-        for _ in range(80):
-            star_x = (pygame.time.get_ticks() // 50 + _ * 137) % SCREEN_WIDTH
-            star_y = (_ * 83) % SCREEN_HEIGHT
-            brightness = 100 + (pygame.time.get_ticks() // 100 + _) % 155
-            pygame.draw.circle(surface, (brightness, brightness, brightness), (star_x, star_y), 1)
+        # Draw clouds in background
+        for cloud in self.clouds:
+            self._draw_cloud(surface, cloud['x'], cloud['y'], cloud['size'])
+        
+        # Draw floating balloons (behind title card)
+        for balloon in self.balloons:
+            self._draw_animated_balloon(surface, int(balloon['x']), int(balloon['y']), 
+                                        balloon['color'], balloon['size'])
+        
+        # Draw flying planes (behind title card)
+        for plane in self.planes:
+            self._draw_flying_plane(surface, int(plane['x']), int(plane['y']), 
+                                    plane['direction'], plane['size'], plane['color'])
+        
+        # Draw stars with twinkle effect
+        t = pygame.time.get_ticks()
+        for i in range(60):
+            star_x = (t // 50 + i * 137) % SCREEN_WIDTH
+            star_y = (i * 83) % SCREEN_HEIGHT
+            # Twinkle effect
+            twinkle = (t // 100 + i * 47) % 200
+            if twinkle > 100:
+                brightness = 200 - twinkle + 55
+            else:
+                brightness = twinkle + 55
+            size = 1 if (t // 500 + i) % 3 != 0 else 2
+            pygame.draw.circle(surface, (brightness, brightness, brightness), (star_x, star_y), size)
         
         font_title = pygame.font.Font(None, 140)
         font_medium = pygame.font.Font(None, 48)
         font_small = pygame.font.Font(None, 32)
         
-        # Title card background
+        # Title card background with glow
         card_x = SCREEN_WIDTH // 2 - 400
         card_y = 80
         card_w = 800
         card_h = 220
+        
+        # Outer glow
+        for i in range(10, 0, -1):
+            glow_color = (20 + i * 3, 25 + i * 4, 40 + i * 5)
+            pygame.draw.rect(surface, glow_color, (card_x - i, card_y - i, card_w + i * 2, card_h + i * 2), 2)
         
         # Card with gradient
         pygame.draw.rect(surface, (30, 35, 50), (card_x, card_y, card_w, card_h))
@@ -81,32 +195,35 @@ class MainMenu:
         # Inner glow
         pygame.draw.rect(surface, (50, 60, 80), (card_x + 5, card_y + 5, card_w - 10, card_h - 10), 2)
         
-        # Title with glow
+        # Title with animated glow
         title = font_title.render("SKY DEFENDER", True, COLOR_CYAN)
         title_rect = title.get_rect(center=(SCREEN_WIDTH // 2, card_y + 80))
         
-        # Glow effect
+        # Animated glow effect
+        glow_intensity = 100 + int(50 * (0.5 + 0.5 * __import__('math').sin(t / 500)))
         for offset in [(3, 3), (-3, -3), (3, -3), (-3, 3)]:
-            glow = font_title.render("SKY DEFENDER", True, (0, 100, 150))
+            glow = font_title.render("SKY DEFENDER", True, (0, glow_intensity // 2, glow_intensity))
             surface.blit(glow, (title_rect.x + offset[0], title_rect.y + offset[1]))
         surface.blit(title, title_rect)
         
-        # Subtitle
-        subtitle = font_small.render("Retro Atari-Style Shooter", True, (180, 180, 220))
+        # Subtitle with fade effect
+        pulse = 0.7 + 0.3 * (0.5 + 0.5 * __import__('math').sin(t / 800))
+        subtitle_color = (int(180 * pulse), int(180 * pulse), int(220 * pulse))
+        subtitle = font_small.render("Retro Atari-Style Shooter", True, subtitle_color)
         sub_rect = subtitle.get_rect(center=(SCREEN_WIDTH // 2, card_y + 150))
         surface.blit(subtitle, sub_rect)
         
-        # Draw decorative balloons in title card
+        # Draw decorative balloons in title card (static but animated)
         balloon_colors = [COLOR_PINK, COLOR_YELLOW, COLOR_GREEN, COLOR_BLUE, COLOR_RED]
         for i in range(5):
             bx = card_x + 80 + i * 140
-            by = card_y + 60 + (i % 2) * 30
+            by = card_y + 60 + (i % 2) * 30 + int(5 * __import__('math').sin(t / 400 + i))
             self._draw_menu_balloon(surface, bx, by, balloon_colors[i], 25)
         
-        # Draw plane in title card
-        self._draw_menu_plane(surface, SCREEN_WIDTH // 2, card_y + 180)
+        # Draw plane in title card (with engine animation)
+        self._draw_menu_plane(surface, SCREEN_WIDTH // 2, card_y + 180, t)
         
-        # Menu buttons
+        # Menu buttons with enhanced visuals
         btn_x = SCREEN_WIDTH // 2 - 150
         btn_y = 380
         btn_width = 300
@@ -114,36 +231,79 @@ class MainMenu:
         
         options = [("PLAY", COLOR_GREEN), ("SHOP", COLOR_YELLOW), ("QUIT", COLOR_RED)]
         
+        mx, my = pygame.mouse.get_pos()
+        
         for i, (text, color) in enumerate(options):
             is_selected = (i == self.selected_option)
+            is_hovered = btn_x <= mx <= btn_x + btn_width and btn_y + i * 80 <= my <= btn_y + i * 80 + btn_height
             
             # Button background with depth
-            if is_selected:
+            if is_selected or is_hovered:
                 bg_color = (70, 70, 95)
                 border_width = 4
                 shadow_offset = 3
+                # Add glow for selected/hovered
+                for g in range(3, 0, -1):
+                    pygame.draw.rect(surface, (color[0]//10, color[1]//10, color[2]//10), 
+                                   (btn_x - g, btn_y + i * 80 - g, btn_width + g*2, btn_height + g*2), 2)
             else:
                 bg_color = (45, 45, 60)
                 border_width = 3
                 shadow_offset = 2
             
             # Shadow
-            pygame.draw.rect(surface, (20, 20, 30), (btn_x + shadow_offset, btn_y + i * 85 + shadow_offset, btn_width, btn_height))
+            pygame.draw.rect(surface, (20, 20, 30), (btn_x + shadow_offset, btn_y + i * 80 + shadow_offset, btn_width, btn_height))
             
             # Button
-            pygame.draw.rect(surface, bg_color, (btn_x, btn_y + i * 85, btn_width, btn_height))
-            pygame.draw.rect(surface, color if is_selected else (80, 80, 100), 
-                           (btn_x, btn_y + i * 85, btn_width, btn_height), border_width)
+            pygame.draw.rect(surface, bg_color, (btn_x, btn_y + i * 80, btn_width, btn_height))
+            pygame.draw.rect(surface, color if (is_selected or is_hovered) else (80, 80, 100), 
+                           (btn_x, btn_y + i * 80, btn_width, btn_height), border_width)
             
             # Button text
-            text_surface = font_medium.render(text, True, color if is_selected else (170, 170, 180))
-            text_rect = text_surface.get_rect(center=(SCREEN_WIDTH // 2, btn_y + i * 85 + btn_height // 2))
+            text_surface = font_medium.render(text, True, color if (is_selected or is_hovered) else (170, 170, 180))
+            text_rect = text_surface.get_rect(center=(SCREEN_WIDTH // 2, btn_y + i * 80 + btn_height // 2))
             surface.blit(text_surface, text_rect)
         
-        # Instructions
-        instr = font_small.render("Arrow Keys + ENTER or Click to select", True, (120, 120, 140))
+        # Instructions with pulsing
+        instr_alpha = 0.5 + 0.5 * (0.5 + 0.5 * __import__('math').sin(t / 600))
+        instr = font_small.render("Arrow Keys + ENTER or Click to select", True, (int(120 * instr_alpha), int(120 * instr_alpha), int(140 * instr_alpha)))
         instr_rect = instr.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 30))
         surface.blit(instr, instr_rect)
+    
+    def _draw_cloud(self, surface: pygame.Surface, x: int, y: int, size: int) -> None:
+        """Draw a fluffy cloud."""
+        color = (60, 65, 85)
+        # Draw multiple overlapping circles for fluffy effect
+        pygame.draw.circle(surface, color, (x, y), size // 2)
+        pygame.draw.circle(surface, color, (x + size // 3, y - size // 4), size // 3)
+        pygame.draw.circle(surface, color, (x - size // 3, y), size // 3)
+        pygame.draw.circle(surface, color, (x + size // 4, y + size // 4), size // 4)
+        pygame.draw.circle(surface, color, (x - size // 4, y - size // 5), size // 4)
+    
+    def _draw_animated_balloon(self, surface: pygame.Surface, x: int, y: int, color: tuple, radius: int) -> None:
+        """Draw an animated floating balloon with string and glow."""
+        # Outer glow using semi-transparent circles
+        for i in range(3, 0, -1):
+            glow_radius = radius + i * 4
+            # Create a soft glow by drawing multiple circles with decreasing opacity
+            glow_surface = pygame.Surface((glow_radius * 2 + 2, glow_radius * 2 + 2), pygame.SRCALPHA)
+            # Fade from center
+            for r in range(glow_radius, 0, -2):
+                alpha = max(0, 40 - (glow_radius - r) * 3)
+                pygame.draw.circle(glow_surface, (*color, alpha), (glow_radius + 1, glow_radius + 1), r)
+            surface.blit(glow_surface, (x - glow_radius - 1, y - glow_radius - 1))
+        
+        # Balloon body with gradient effect
+        pygame.draw.circle(surface, color, (x, y), radius)
+        # Inner highlight
+        pygame.draw.circle(surface, (min(color[0] + 60, 255), min(color[1] + 60, 255), min(color[2] + 60, 255)), 
+                          (x - radius//3, y - radius//3), radius//4)
+        # Shine
+        pygame.draw.circle(surface, (255, 255, 255), (x - radius//2, y - radius//2), radius//8)
+        # String
+        pygame.draw.line(surface, (80, 80, 80), (x, y + radius), (x, y + radius + 25), 1)
+        # Knot
+        pygame.draw.circle(surface, (60, 60, 60), (x, y + radius + 5), 3)
     
     def _draw_menu_balloon(self, surface: pygame.Surface, x: int, y: int, color: tuple, radius: int) -> None:
         """Draw a balloon for the title card."""
@@ -154,10 +314,74 @@ class MainMenu:
         # String
         pygame.draw.line(surface, (100, 100, 100), (x, y + radius), (x, y + radius + 20), 1)
     
-    def _draw_menu_plane(self, surface: pygame.Surface, x: int, y: int) -> None:
-        """Draw a detailed plane for the title card."""
+    def _draw_flying_plane(self, surface: pygame.Surface, x: int, y: int, direction: int, scale: float, color: tuple) -> None:
+        """Draw a flying plane with propeller animation and exhaust trails."""
+        import math
+        t = pygame.time.get_ticks()
+        
+        # Exhaust trail behind the plane
+        trail_length = 8
+        trail_offset = -direction * 15 * scale
+        for i in range(trail_length):
+            trail_x = x + trail_offset * (i + 1)
+            trail_y = y - 25 * scale + math.sin(t / 100 + i) * 2
+            trail_alpha = max(0, 100 - i * 12)
+            trail_size = max(1, 6 - i * 0.6) * scale
+            trail_surface = pygame.Surface((int(trail_size * 2 + 2), int(trail_size * 2 + 2)), pygame.SRCALPHA)
+            pygame.draw.circle(trail_surface, (255, 150, 50, trail_alpha), 
+                              (int(trail_size + 1), int(trail_size + 1)), int(trail_size))
+            surface.blit(trail_surface, (trail_x - trail_size - 1, trail_y - trail_size - 1))
+        
         # Shadow
-        pygame.draw.ellipse(surface, (0, 0, 0, 50), (x - 45, y + 5, 90, 20))
+        shadow_offset = 5
+        pygame.draw.ellipse(surface, (0, 0, 0), (x - 40 * scale + shadow_offset, y + 3 + shadow_offset, 80 * scale, 10 * scale))
+        
+        # Wings with gradient
+        pygame.draw.rect(surface, color, (x - 45 * scale, y - 3 * scale, 90 * scale, 6 * scale))
+        pygame.draw.rect(surface, COLOR_BLACK, (x - 45 * scale, y - 3 * scale, 90 * scale, 6 * scale), 1)
+        # Wing highlight
+        pygame.draw.line(surface, (min(color[0] + 50, 255), min(color[1] + 50, 255), min(color[2] + 50, 255)),
+                        (x - 43 * scale, y - 2 * scale), (x + 43 * scale, y - 2 * scale), 2)
+        
+        # Fuselage
+        pygame.draw.rect(surface, color, (x - 6 * scale, y - 20 * scale, 12 * scale, 40 * scale))
+        pygame.draw.rect(surface, COLOR_BLACK, (x - 6 * scale, y - 20 * scale, 12 * scale, 40 * scale), 1)
+        
+        # Nose cone
+        nose_points = [(x, y - 28 * scale), (x - 6 * scale, y - 20 * scale), (x + 6 * scale, y - 20 * scale)]
+        pygame.draw.polygon(surface, COLOR_WHITE, nose_points)
+        pygame.draw.polygon(surface, COLOR_BLACK, nose_points, 1)
+        
+        # Cockpit with shine
+        pygame.draw.rect(surface, (100, 200, 255), (x - 4 * scale, y - 15 * scale, 8 * scale, 10 * scale))
+        pygame.draw.rect(surface, COLOR_BLACK, (x - 4 * scale, y - 15 * scale, 8 * scale, 10 * scale), 1)
+        pygame.draw.circle(surface, (200, 240, 255), (x - 2 * scale, y - 12 * scale), 2 * scale)
+        
+        # Tail fin
+        pygame.draw.polygon(surface, color, [(x - 4 * scale, y + 20 * scale), (x + 4 * scale, y + 20 * scale), (x, y + 35 * scale)])
+        pygame.draw.polygon(surface, COLOR_BLACK, [(x - 4 * scale, y + 20 * scale), (x + 4 * scale, y + 20 * scale), (x, y + 35 * scale)], 1)
+        
+        # Animated propeller (blur effect)
+        prop_angle = (t / 20) % 360
+        prop_length = 20 * scale
+        prop_x = x + 6 * scale * direction
+        
+        # Propeller blur disc
+        prop_surface = pygame.Surface((int(prop_length * 2 + 4), int(prop_length + 4)), pygame.SRCALPHA)
+        pygame.draw.ellipse(prop_surface, (200, 200, 200, 150), 
+                           (2, 2, int(prop_length * 2), int(prop_length)))
+        surface.blit(prop_surface, (prop_x - prop_length - 2, y - 25 * scale - prop_length // 2 - 2))
+        
+        # Engine glow
+        pygame.draw.circle(surface, (255, 150, 50), (prop_x, y - 25 * scale), 4 * scale)
+        pygame.draw.circle(surface, (255, 200, 100), (prop_x, y - 25 * scale), 2 * scale)
+    
+    def _draw_menu_plane(self, surface: pygame.Surface, x: int, y: int, t: int = 0) -> None:
+        """Draw a detailed plane for the title card with animated propeller."""
+        import math
+        
+        # Shadow
+        pygame.draw.ellipse(surface, (0, 0, 0), (x - 45, y + 5, 90, 20))
         
         # Wings
         pygame.draw.rect(surface, COLOR_RED, (x - 45, y - 5, 90, 10))
@@ -182,9 +406,17 @@ class MainMenu:
         pygame.draw.polygon(surface, COLOR_RED, [(x - 6, y + 35), (x + 6, y + 35), (x, y + 55)])
         pygame.draw.polygon(surface, COLOR_BLACK, [(x - 6, y + 35), (x + 6, y + 35), (x, y + 55)], 1)
         
+        # Animated propeller
+        prop_angle = (t / 15) % 360
+        for i in range(3):
+            angle = math.radians(prop_angle + i * 120)
+            end_x = x + math.cos(angle) * 25
+            end_y = y - 50 + math.sin(angle) * 8
+            pygame.draw.line(surface, (200, 200, 200), (x, y - 50), (end_x, end_y), 2)
+        
         # Engine glow
-        pygame.draw.circle(surface, (255, 150, 50), (x, y + 50), 5)
-        pygame.draw.circle(surface, (255, 200, 100), (x, y + 50), 3)
+        pygame.draw.circle(surface, (255, 150, 50), (x, y - 50), 6)
+        pygame.draw.circle(surface, (255, 200, 100), (x, y - 50), 3)
 
 
 class LevelSelect:
@@ -337,11 +569,12 @@ class LevelSelect:
 
 
 class Shop:
-    """Shop screen accessible from main menu."""
+    """Shop screen accessible from main menu or level complete."""
     
     def __init__(self, total_orbs: int = 0, dart_speed_level: int = 0,
                  laser_level: int = 0, missile_level: int = 0, boomerang_level: int = 0,
-                 lightning_level: int = 0, wingman_level: int = 0):
+                 lightning_level: int = 0, wingman_level: int = 0,
+                 show_next_level: bool = False, level_num: int = 1, has_next: bool = True):
         self.total_orbs = total_orbs
         self.dart_speed_level = dart_speed_level
         self.laser_level = laser_level
@@ -350,6 +583,9 @@ class Shop:
         self.lightning_level = lightning_level
         self.wingman_level = wingman_level
         self.selected_option = 0  # 0 = back
+        self.show_next_level = show_next_level
+        self.level_num = level_num
+        self.has_next = has_next
         
         # Recalculate costs
         from game.constants import (
@@ -402,7 +638,7 @@ class Shop:
         self.can_buy_wingman = self.total_orbs >= self.wingman_cost
     
     def handle_event(self, event: pygame.event.Event) -> str:
-        """Handle input. Returns 'buy_X', 'back', or 'none'."""
+        """Handle input. Returns 'buy_X', 'back', 'next_level', or 'none'."""
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 return 'back'
@@ -410,16 +646,18 @@ class Shop:
         elif event.type == pygame.MOUSEBUTTONDOWN:
             mx, my = event.pos
             
-            # Check back button
-            if 50 <= mx <= 150 and 50 <= my <= 90:
+            # Check back button (matches visual position in draw())
+            if 60 <= mx <= 140 and 110 <= my <= 145:
                 return 'back'
             
-            # Check upgrade buttons
-            btn_x = 100
-            btn_y = 200
-            btn_width = 350
-            btn_height = 80
+            # Check next level button if showing
+            if self.show_next_level and self.has_next:
+                btn_x = SCREEN_WIDTH // 2 - 120
+                btn_y = SCREEN_HEIGHT - 80
+                if btn_x <= mx <= btn_x + 240 and btn_y <= my <= btn_y + 50:
+                    return 'next_level'
             
+            # Check upgrade buttons
             # 2x3 grid click detection
             grid_start_x = 80
             grid_start_y = 170
@@ -549,10 +787,15 @@ class Shop:
             pygame.draw.circle(surface, (80, 70, 60), (rx, banner_y + 10), 6)
             pygame.draw.circle(surface, (100, 90, 80), (rx, banner_y + 10), 3)
         
-        # Title
-        title = font_large.render("WEAPON WORKSHOP", True, (200, 180, 150))
-        title_rect = title.get_rect(center=(SCREEN_WIDTH // 2, banner_y + 35))
-        surface.blit(title, title_rect)
+        # Title - changes based on context
+        if self.show_next_level:
+            title = font_large.render(f"LEVEL {self.level_num} COMPLETE!", True, COLOR_GREEN)
+            title_rect = title.get_rect(center=(SCREEN_WIDTH // 2, banner_y + 35))
+            surface.blit(title, title_rect)
+        else:
+            title = font_large.render("WEAPON WORKSHOP", True, (200, 180, 150))
+            title_rect = title.get_rect(center=(SCREEN_WIDTH // 2, banner_y + 35))
+            surface.blit(title, title_rect)
         
         # Orb display - looks like a coin purse
         orb_x = SCREEN_WIDTH - 150
@@ -687,11 +930,12 @@ class Shop:
             action_badge = font_tiny.render(action_text, True, action_color)
             surface.blit(action_badge, (info_x, info_y + 100))
         
-        # Tooltip panel on right side
-        tooltip_x = 1000
-        tooltip_y = 170
-        tooltip_w = 250
-        tooltip_h = 350
+        # Tooltip panel below the 6 options grid
+        grid_end_y = grid_start_y + 3 * (btn_height + row_gap) - row_gap
+        tooltip_x = 100
+        tooltip_y = grid_end_y + 20
+        tooltip_w = SCREEN_WIDTH - 200
+        tooltip_h = 140
         
         if hovered_item:
             _, name, level, cost, color, description, can_buy = hovered_item
@@ -700,17 +944,17 @@ class Shop:
             pygame.draw.rect(surface, (45, 42, 38), (tooltip_x, tooltip_y, tooltip_w, tooltip_h))
             pygame.draw.rect(surface, (100, 90, 80), (tooltip_x, tooltip_y, tooltip_w, tooltip_h), 3)
             
-            # Header
+            # Header on left
             header_text = font_small.render("WEAPON INFO", True, (180, 170, 160))
-            surface.blit(header_text, (tooltip_x + 20, tooltip_y + 15))
+            surface.blit(header_text, (tooltip_x + 20, tooltip_y + 10))
             
-            # Divider
-            pygame.draw.line(surface, (80, 70, 60), (tooltip_x + 10, tooltip_y + 45),
-                           (tooltip_x + tooltip_w - 10, tooltip_y + 45), 1)
+            # Divider vertical
+            pygame.draw.line(surface, (80, 70, 60), (tooltip_x + 180, tooltip_y + 5),
+                           (tooltip_x + 180, tooltip_y + tooltip_h - 5), 1)
             
-            # Weapon name
+            # Left section: Weapon name and level
             weapon_name = font_medium.render(name, True, color)
-            surface.blit(weapon_name, (tooltip_x + 20, tooltip_y + 60))
+            surface.blit(weapon_name, (tooltip_x + 20, tooltip_y + 40))
             
             # Current level
             if level == 0:
@@ -718,16 +962,17 @@ class Shop:
             else:
                 level_info = f"Current: Level {level}"
             level_info_text = font_tiny.render(level_info, True, (150, 150, 160))
-            surface.blit(level_info_text, (tooltip_x + 20, tooltip_y + 100))
+            surface.blit(level_info_text, (tooltip_x + 20, tooltip_y + 75))
             
-            # Description
-            # Word wrap description
+            # Description in center
+            desc_x = tooltip_x + 200
+            desc_w = 400
             words = description.split()
             lines = []
             current_line = ""
             for word in words:
                 test_line = current_line + " " + word if current_line else word
-                if font_tiny.size(test_line)[0] < tooltip_w - 40:
+                if font_tiny.size(test_line)[0] < desc_w:
                     current_line = test_line
                 else:
                     if current_line:
@@ -736,21 +981,19 @@ class Shop:
             if current_line:
                 lines.append(current_line)
             
-            desc_y = tooltip_y + 130
+            desc_y = tooltip_y + 40
             for line in lines:
                 desc_text = font_tiny.render(line, True, (170, 170, 180))
-                surface.blit(desc_text, (tooltip_x + 20, desc_y))
+                surface.blit(desc_text, (desc_x, desc_y))
                 desc_y += 25
             
-            # Stats section
-            pygame.draw.line(surface, (80, 70, 60), (tooltip_x + 10, tooltip_y + 220),
-                           (tooltip_x + tooltip_w - 10, tooltip_y + 220), 1)
-            
+            # Stats on right
+            stats_x = tooltip_x + tooltip_w - 250
             stats_title = font_tiny.render("STATS:", True, (180, 170, 160))
-            surface.blit(stats_title, (tooltip_x + 20, tooltip_y + 235))
+            surface.blit(stats_title, (stats_x, tooltip_y + 10))
             
             # Show specific stats based on weapon
-            stats_y = tooltip_y + 260
+            stats_y = tooltip_y + 35
             if "Dart" in name:
                 stats = ["+20% speed per level", "Fires from both wings", "Fast cooldown"]
             elif "Laser" in name:
@@ -768,11 +1011,34 @@ class Shop:
             
             for stat in stats:
                 stat_text = font_tiny.render("• " + stat, True, (160, 160, 170))
-                surface.blit(stat_text, (tooltip_x + 25, stats_y))
+                surface.blit(stat_text, (stats_x, stats_y))
                 stats_y += 22
         
-        # Instructions
-        instr = font_small.render("Hover for details | Click to buy | ESC to go back", True, (130, 130, 140))
+        # Next level button at bottom if showing level complete
+        if self.show_next_level and self.has_next:
+            btn_x = SCREEN_WIDTH // 2 - 120
+            btn_y = SCREEN_HEIGHT - 80
+            # Check if hovered
+            mx, my = pygame.mouse.get_pos()
+            is_hovered = btn_x <= mx <= btn_x + 240 and btn_y <= my <= btn_y + 50
+            
+            if is_hovered:
+                btn_color = (100, 200, 100)
+            else:
+                btn_color = COLOR_GREEN
+            
+            pygame.draw.rect(surface, btn_color, (btn_x, btn_y, 240, 50), border_radius=8)
+            pygame.draw.rect(surface, COLOR_BLACK, (btn_x, btn_y, 240, 50), 3, border_radius=8)
+            next_text = font_medium.render("NEXT LEVEL", True, COLOR_BLACK)
+            text_rect = next_text.get_rect(center=(SCREEN_WIDTH // 2, btn_y + 25))
+            surface.blit(next_text, text_rect)
+            
+            # Instructions with next level info
+            instr = font_small.render("Buy upgrades | Click NEXT LEVEL to continue | ESC to go back", True, (130, 130, 140))
+        else:
+            # Instructions
+            instr = font_small.render("Hover for details | Click to buy | ESC to go back", True, (130, 130, 140))
+        
         instr_rect = instr.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 30))
         surface.blit(instr, instr_rect)
     
