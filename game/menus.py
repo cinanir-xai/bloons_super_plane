@@ -453,6 +453,8 @@ class LevelSelect:
         self.current_page = 0
         self.levels_per_page = 6
         self.total_levels = 12  # Updated for 12 levels
+        self.level_stars = {}
+        self.level_perfect = {}
     
     def _get_levels_on_page(self) -> tuple:
         """Get the range of levels on current page."""
@@ -594,6 +596,11 @@ class LevelSelect:
                 # Lock icon
                 self._draw_lock(surface, icon_x + self.icon_size // 2, icon_y + self.icon_size // 2)
             
+            # Stars (hollow baseline with filled earned)
+            stars_earned = self.level_stars.get(level_num, 0)
+            perfect = self.level_perfect.get(level_num, False)
+            self._draw_level_stars(surface, icon_x + self.icon_size // 2, icon_y + self.icon_size - 12, stars_earned, perfect)
+            
             # Level number
             level_text = font_medium.render(f"LEVEL {level_num}", True, 
                                            COLOR_WHITE if not is_locked else (100, 100, 100))
@@ -697,6 +704,33 @@ class LevelSelect:
                 color = colors[tier]
                 pygame.draw.circle(surface, color, (bx, by), 8)
                 pygame.draw.circle(surface, COLOR_BLACK, (bx, by), 8, 1)
+    
+    def _draw_level_stars(self, surface: pygame.Surface, cx: int, cy: int, stars: int, perfect: bool) -> None:
+        """Draw 3 hollow stars with filled earned stars."""
+        spacing = 26
+        for i in range(3):
+            star_x = cx - spacing + i * spacing
+            star_y = cy
+            filled = i < stars
+            base_color = COLOR_WHITE if perfect and stars == 3 else COLOR_YELLOW
+            if filled:
+                self._draw_star(surface, star_x, star_y, 10, base_color, hollow=False)
+            else:
+                self._draw_star(surface, star_x, star_y, 10, (180, 180, 200), hollow=True)
+    
+    def _draw_star(self, surface: pygame.Surface, cx: int, cy: int, radius: int, color: tuple, hollow: bool = False) -> None:
+        """Draw a stylized star."""
+        points = []
+        inner = radius * 0.5
+        for i in range(10):
+            angle = math.radians(i * 36 - 90)
+            r = radius if i % 2 == 0 else inner
+            points.append((cx + math.cos(angle) * r, cy + math.sin(angle) * r))
+        if hollow:
+            pygame.draw.polygon(surface, color, points, 2)
+        else:
+            pygame.draw.polygon(surface, color, points)
+            pygame.draw.polygon(surface, COLOR_BLACK, points, 1)
     
     def _draw_lock(self, surface: pygame.Surface, cx: int, cy: int) -> None:
         """Draw a lock icon."""

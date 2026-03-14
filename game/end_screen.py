@@ -1,6 +1,8 @@
 """End-of-Level Screen - Separate page shown after completing a level."""
 
 import pygame
+import math
+import random
 from game.constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, COLOR_BLACK, COLOR_WHITE,
     COLOR_YELLOW, COLOR_RED, COLOR_GREEN, COLOR_CYAN, COLOR_ORANGE,
@@ -20,7 +22,8 @@ class EndScreen:
     def __init__(self, orbs_collected: int, level_num: int, has_next: bool, 
                  total_orbs: int = 0, dart_speed_level: int = 0, laser_level: int = 0,
                  missile_level: int = 0, boomerang_level: int = 0, lightning_level: int = 0,
-                 wingman_level: int = 0):
+                 wingman_level: int = 0, stars_earned: int = 0, perfect: bool = False,
+                 popped_ratio: float = 0.0):
         self.orbs_collected = orbs_collected
         self.level_num = level_num
         self.has_next = has_next
@@ -31,7 +34,13 @@ class EndScreen:
         self.boomerang_level = boomerang_level
         self.lightning_level = lightning_level
         self.wingman_level = wingman_level
+        self.stars_earned = stars_earned
+        self.perfect = perfect
+        self.popped_ratio = popped_ratio
         self.selected_option = 0  # 0 = next level, 1 = quit
+        self.star_fx_time = 0.0
+        self.star_sparkles = []
+        self.show_upgrades = False
         
         # Upgrade state - Dart: unlocked from beginning, upgrades start at 100, increase by 50%
         self.dart_speed_cost = int(UPGRADE_DART_SPEED_BASE_COST * (UPGRADE_DART_SPEED_COST_MULTIPLIER ** dart_speed_level))
@@ -84,6 +93,12 @@ class EndScreen:
     def handle_event(self, event: pygame.event.Event) -> str:
         """Handle input. Returns 'next', 'menu', 'quit', 'buy_dart', 'buy_laser', 'buy_missile', 'buy_boomerang', 'buy_lightning', 'buy_wingman', or 'none'."""
         if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_ESCAPE):
+                self.show_upgrades = True
+            if not self.show_upgrades:
+                return 'none'
+            if event.key == pygame.K_ESCAPE:
+                return 'menu'
             if event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                 if self.selected_option == 0:
                     return 'next' if self.has_next else 'menu'
@@ -93,6 +108,7 @@ class EndScreen:
                 self.selected_option = 1 - self.selected_option
         
         elif event.type == pygame.MOUSEBUTTONDOWN:
+            self.show_upgrades = True
             mx, my = event.pos
             
             # Check upgrade button clicks
@@ -144,6 +160,10 @@ class EndScreen:
         title_rect = title.get_rect(center=(SCREEN_WIDTH // 2, 80))
         surface.blit(title, title_rect)
         
+        # Stars summary
+        self._update_star_fx()
+        self._draw_star_summary(surface, font_medium, font_small)
+        
         # Orb count display (top right)
         orb_x = SCREEN_WIDTH - 150
         orb_y = 40
@@ -157,6 +177,10 @@ class EndScreen:
         # Orbs collected this level
         orb_label = font_small.render(f"+{self.orbs_collected} this level", True, (200, 200, 200))
         surface.blit(orb_label, (orb_x + 30, orb_y + 15))
+        
+        if not self.show_upgrades:
+            self._draw_star_prompt(surface, font_small)
+            return
         
         # Upgrade section
         upgrade_title = font_medium.render("UPGRADES", True, COLOR_WHITE)
@@ -234,6 +258,133 @@ class EndScreen:
         instr = font_small.render("Click upgrade to buy | Arrow keys + ENTER for navigation", True, (150, 150, 150))
         instr_rect = instr.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 30))
         surface.blit(instr, instr_rect)
+    
+    def _update_star_fx(self) -> None:
+        """Update star sparkle animations."""
+        now = pygame.time.get_ticks() / 1000.0
+        last_tick = getattr(self, "_last_star_tick", now)
+        dt = now - last_tick
+        self._last_star_tick = now
+        self.star_fx_time += dt
+        
+        if not self.star_sparkles:
+            return
+        
+        updated = []
+        for sparkle in self.star_sparkles:
+            sparkle["life"] -= dt
+            if sparkle["life"] <= 0:
+                continue
+            sparkle["x"] += sparkle["vx"] * dt
+            sparkle["y"] += sparkle["vy"] * dt
+            sparkle["vy"] += 25 * dt
+            sparkle["alpha"] = max(0, sparkle["alpha"] - dt * 160)
+            updated.append(sparkle)
+        self.star_sparkles = updated
+    
+    def _emit_star_sparkle(self, cx: float, cy: float, color: tuple) -> None:
+        """Spawn a sparkle near a star."""
+        if random.random() > 0.08:
+            return
+        angle = random.uniform(0, 2 * math.pi)
+        speed = random.uniform(15, 40)
+        self.star_sparkles.append({
+            "x": cx + random.uniform(-6, 6),
+            "y": cy + random.uniform(-6, 6),
+            "vx": math.cos(angle) * speed,
+            "vy": math.sin(angle) * speed - 20,
+            "life": random.uniform(0.4, 0.9),
+            "size": random.randint(2, 4),
+            "color": color,
+            "alpha": 200
+        })
+    
+    def _draw_star_summary(self, surface: pygame.Surface, font_medium: pygame.font.Font, font_small: pygame.font.Font) -> None:
+        """Draw the stars earned popup."""
+        panel_w = 460
+        panel_h = 160
+        panel_x = SCREEN_WIDTH // 2 - panel_w // 2
+        panel_y = 115
+        
+        # Panel with depth
+        pygame.draw.rect(surface, (10, 10, 15), (panel_x + 5, panel_y + 5, panel_w, panel_h), border_radius=12)
+        pygame.draw.rect(surface, (32, 34, 50), (panel_x, panel_y, panel_w, panel_h), border_radius=12)
+        pygame.draw.rect(surface, (90, 95, 120), (panel_x, panel_y, panel_w, panel_h), 2, border_radius=12)
+        
+        header = font_medium.render("STARS EARNED", True, COLOR_WHITE)
+        header_rect = header.get_rect(center=(SCREEN_WIDTH // 2, panel_y + 30))
+        surface.blit(header, header_rect)
+        
+        base_color = COLOR_WHITE if self.perfect and self.stars_earned >= 3 else COLOR_YELLOW
+        spacing = 75
+        star_y = panel_y + 90
+        
+        for i in range(3):
+            star_x = SCREEN_WIDTH // 2 - spacing + i * spacing
+            filled = i < self.stars_earned
+            if filled:
+                pulse = 1.0 + 0.05 * math.sin(self.star_fx_time * 3.5 + i)
+                self._draw_star(surface, star_x, star_y, 24 * pulse, base_color, hollow=False)
+                self._emit_star_sparkle(star_x, star_y, base_color)
+            else:
+                self._draw_star(surface, star_x, star_y, 22, (160, 165, 190), hollow=True)
+        
+        percent = int(self.popped_ratio * 100)
+        detail_color = (220, 220, 230) if not self.perfect else COLOR_CYAN
+        detail = font_small.render(f"Pop Accuracy: {percent}%", True, detail_color)
+        detail_rect = detail.get_rect(center=(SCREEN_WIDTH // 2, panel_y + 132))
+        surface.blit(detail, detail_rect)
+        
+        if self.perfect:
+            tag = font_small.render("PERFECT CLEAR!", True, COLOR_WHITE)
+            tag_rect = tag.get_rect(center=(SCREEN_WIDTH // 2, panel_y + 17))
+            surface.blit(tag, tag_rect)
+        
+        for sparkle in self.star_sparkles:
+            alpha = int(max(0, min(255, sparkle["alpha"])))
+            sparkle_color = (*sparkle["color"], alpha)
+            sparkle_surface = pygame.Surface((sparkle["size"] * 2 + 2, sparkle["size"] * 2 + 2), pygame.SRCALPHA)
+            pygame.draw.circle(
+                sparkle_surface,
+                sparkle_color,
+                (sparkle["size"] + 1, sparkle["size"] + 1),
+                sparkle["size"]
+            )
+            surface.blit(sparkle_surface, (sparkle["x"], sparkle["y"]))
+    
+    def _draw_star_prompt(self, surface: pygame.Surface, font_small: pygame.font.Font) -> None:
+        """Draw hint to proceed to upgrades."""
+        prompt_text = "Press ENTER to continue to upgrades"
+        color = (200, 200, 220)
+        pulse = 0.7 + 0.3 * math.sin(self.star_fx_time * 3.5)
+        color = (int(color[0] * pulse), int(color[1] * pulse), int(color[2] * pulse))
+        prompt = font_small.render(prompt_text, True, color)
+        prompt_rect = prompt.get_rect(center=(SCREEN_WIDTH // 2, 295))
+        surface.blit(prompt, prompt_rect)
+    
+    def _draw_star(self, surface: pygame.Surface, cx: float, cy: float, radius: float, color: tuple, hollow: bool = False) -> None:
+        """Draw a stylized star with optional glow."""
+        radius = max(6, radius)
+        glow_surface = pygame.Surface((radius * 4, radius * 4), pygame.SRCALPHA)
+        glow_color = (*color, 80) if not hollow else (0, 0, 0, 0)
+        if not hollow:
+            pygame.draw.circle(glow_surface, glow_color, (radius * 2, radius * 2), int(radius * 1.2))
+            surface.blit(glow_surface, (cx - radius * 2, cy - radius * 2))
+        
+        points = []
+        inner = radius * 0.5
+        for i in range(10):
+            angle = math.radians(i * 36 - 90)
+            r = radius if i % 2 == 0 else inner
+            points.append((cx + math.cos(angle) * r, cy + math.sin(angle) * r))
+        
+        if hollow:
+            pygame.draw.polygon(surface, color, points, 2)
+        else:
+            shadow_points = [(x + 2, y + 2) for x, y in points]
+            pygame.draw.polygon(surface, (20, 20, 30), shadow_points)
+            pygame.draw.polygon(surface, color, points)
+            pygame.draw.polygon(surface, COLOR_BLACK, points, 1)
     
     def _draw_dart_icon(self, surface: pygame.Surface, cx: int, cy: int, scale: float = 1.0) -> None:
         """Draw a dart icon."""

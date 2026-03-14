@@ -68,6 +68,10 @@ class Game:
         
         # Player progress (persists across levels)
         self.unlocked_levels = 1
+        self.level_stars = {}
+        self.level_perfect = {}
+        self.level_total_balloons = 0
+        self.debug_unlock_all = False
         
         # Current level being played
         self.current_level = 1
@@ -76,7 +80,9 @@ class Game:
         """Load a specific level."""
         balloons = self.level_manager.load_level(level_num)
         self.balloon_manager.balloons = balloons
+        self.balloon_manager.off_screen_count = 0
         self.level_start_orbs = self.orb_manager.total_orbs
+        self.level_total_balloons = len(balloons)
         pygame.mouse.set_visible(False)
 
     def _handle_debug_menu_input(self, event: pygame.event.Event) -> None:
@@ -86,6 +92,7 @@ class Game:
         if event.key == pygame.K_f:
             # Unlock all levels
             self.unlocked_levels = self.level_manager.total_levels
+            self.debug_unlock_all = True
             self.level_select.unlocked_levels = self.unlocked_levels
         elif event.key == pygame.K_e:
             # Add 1000 orbs
@@ -94,9 +101,6 @@ class Game:
     def _on_level_complete(self) -> None:
         """Handle level completion - goes to shop/workshop with next level button."""
         orbs_this_level = self.orb_manager.total_orbs - self.level_start_orbs
-        
-        # Update unlocked levels
-        self.unlocked_levels = max(self.unlocked_levels, self.level_manager.current_level_num + 1)
         
         # Transition to shop with level complete mode
         self.game_state = "shop"
@@ -117,6 +121,14 @@ class Game:
             level_num=self.level_manager.current_level_num,
             has_next=self.level_manager.has_next_level()
         )
+
+    def _get_level_unlocked(self, level_num: int) -> bool:
+        """Return True if the level is unlocked based on stars or debug override."""
+        if self.debug_unlock_all:
+            return True
+        if level_num == 1:
+            return True
+        return self.level_stars.get(level_num - 1, 0) >= 1
 
     def handle_events(self) -> None:
         """Handle pygame events."""
@@ -143,10 +155,11 @@ class Game:
                     self.game_state = "main_menu"
                 elif result.startswith('level_'):
                     level_num = int(result.split('_')[1])
-                    self.current_level = level_num
-                    self._load_level(level_num)
-                    self.game_state = "playing"
-                    pygame.mouse.set_visible(False)
+                    if self._get_level_unlocked(level_num):
+                        self.current_level = level_num
+                        self._load_level(level_num)
+                        self.game_state = "playing"
+                        pygame.mouse.set_visible(False)
             
             elif self.game_state == "shop":
                 result = self.shop.handle_event(event)
@@ -157,11 +170,11 @@ class Game:
                 elif result == 'next_level':
                     # Load next level and start playing
                     next_level = self.level_manager.get_next_level_num()
-                    self.unlocked_levels = max(self.unlocked_levels, next_level)
-                    self.current_level = next_level
-                    self._load_level(next_level)
-                    self.game_state = "playing"
-                    pygame.mouse.set_visible(False)
+                    if self._get_level_unlocked(next_level):
+                        self.current_level = next_level
+                        self._load_level(next_level)
+                        self.game_state = "playing"
+                        pygame.mouse.set_visible(False)
                     self._sync_player_upgrades()
                 elif result == 'buy_dart':
                     self.shop.buy_upgrade('dart')
@@ -204,13 +217,13 @@ class Game:
         result = self.end_screen.handle_event(event)
         
         if result == 'next':
-            # Load next level
+            # Load next level (requires unlock)
             next_level = self.level_manager.get_next_level_num()
-            self.unlocked_levels = max(self.unlocked_levels, next_level)
-            self.current_level = next_level
-            self._load_level(next_level)
-            self.game_state = "playing"
-            pygame.mouse.set_visible(False)
+            if self._get_level_unlocked(next_level):
+                self.current_level = next_level
+                self._load_level(next_level)
+                self.game_state = "playing"
+                pygame.mouse.set_visible(False)
         elif result == 'menu':
             # Go to main menu
             self.game_state = "main_menu"
@@ -419,7 +432,56 @@ class Game:
             self.level_manager.level_complete = True
         
         if self.level_manager.level_complete:
-            self._on_level_complete()
+            self._handle_level_complete_flow()
+
+    def _handle_level_complete_flow(self) -> None:
+        """Compute stars earned, update unlocks, and show end screen."""
+        total = max(1, self.level_total_balloons)
+        popped = total - self.balloon_manager.get_remaining_count() - self.balloon_manager.get_total_off_screen()
+        popped = max(0, min(total, popped))
+        ratio = popped / total
+        
+        if ratio >= 0.9:
+            stars = 3
+        elif ratio >= 0.5:
+            stars = 2
+        elif ratio >= 0.25:
+            stars = 1
+        else:
+            stars = 0
+        perfect = popped == total
+        
+        previous_stars = self.level_stars.get(self.level_manager.current_level_num, 0)
+        best_stars = max(previous_stars, stars)
+        if best_stars > previous_stars:
+            self.level_stars[self.level_manager.current_level_num] = best_stars
+        self.level_perfect[self.level_manager.current_level_num] = (
+            self.level_perfect.get(self.level_manager.current_level_num, False) or perfect
+        )
+        
+        # Unlock next level only if this level has at least 1 star (or debug unlock)
+        if best_stars >= 1 or self.debug_unlock_all:
+            self.unlocked_levels = max(self.unlocked_levels, self.level_manager.current_level_num + 1)
+        
+        orbs_this_level = self.orb_manager.total_orbs - self.level_start_orbs
+        self.game_state = "end_screen"
+        pygame.mouse.set_visible(True)
+        self.end_screen = EndScreen(
+            orbs_collected=orbs_this_level,
+            level_num=self.level_manager.current_level_num,
+            has_next=self.level_manager.has_next_level() and (best_stars >= 1 or self.debug_unlock_all),
+            total_orbs=self.orb_manager.total_orbs,
+            dart_speed_level=self.player.dart_manager.dart_speed_level if hasattr(self.player.dart_manager, 'dart_speed_level') else 0,
+            laser_level=self.player.laser_level,
+            missile_level=self.player.missile_level,
+            boomerang_level=self.player.boomerang_level,
+            lightning_level=self.player.lightning_level,
+            wingman_level=self.player.wingman_level,
+            stars_earned=stars,
+            perfect=perfect,
+            popped_ratio=ratio
+        )
+        self.level_manager.level_complete = False
 
     def _check_collision(self, dart, balloon) -> bool:
         """Check if dart collides with balloon."""
@@ -519,6 +581,8 @@ class Game:
         elif self.game_state == "level_select":
             # Update level select with current unlock progress
             self.level_select.unlocked_levels = self.unlocked_levels
+            self.level_select.level_stars = self.level_stars
+            self.level_select.level_perfect = self.level_perfect
             self.level_select.draw(self.screen)
         elif self.game_state == "shop":
             self.shop.draw(self.screen)
