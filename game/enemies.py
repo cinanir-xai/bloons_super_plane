@@ -37,10 +37,27 @@ class Balloon:
     color: Tuple[int, int, int] = (0,0,0)
     popped: bool = False
     pop_animation: float = 0.0
+    # Movement pattern support
+    speed_multiplier: float = 1.0
+    pattern: str = "vertical"  # vertical, zigzag, circular, spiral, wave
+    pattern_data: dict = field(default_factory=dict)
+    base_x: float = 0.0  # Original x position for patterns
+    base_y: float = 0.0  # Original y position for patterns
+    time_alive: float = 0.0
 
     def __post_init__(self):
         self.radius = get_balloon_radius(self.tier)
         self.color = BALLOON_COLORS[self.tier]
+        self.base_x = self.x
+        self.base_y = self.y
+        # Initialize pattern data
+        if not self.pattern_data:
+            self.pattern_data = {
+                'amplitude': random.uniform(20, 60),  # For zigzag/wave
+                'frequency': random.uniform(0.02, 0.05),  # For zigzag/wave/circular
+                'phase': random.uniform(0, 2 * math.pi),  # For circular/spiral
+                'radius': random.uniform(30, 80),  # For circular
+            }
 
     def take_damage(self) -> bool:
         """Take damage and downgrade. Returns True if should be removed."""
@@ -57,7 +74,44 @@ class Balloon:
         if self.popped:
             self.pop_animation += dt * 60
             return self.pop_animation < 15  # Animation lasts 15 frames
-        self.y += self.speed * dt * 60
+        
+        # Update time alive
+        self.time_alive += dt * 60
+        
+        # Calculate effective speed
+        effective_speed = self.speed * self.speed_multiplier
+        
+        # Apply movement pattern
+        if self.pattern == "vertical":
+            self.y += effective_speed * dt * 60
+        elif self.pattern == "zigzag":
+            self.y += effective_speed * dt * 60
+            amp = self.pattern_data.get('amplitude', 40)
+            freq = self.pattern_data.get('frequency', 0.03)
+            self.x = self.base_x + math.sin(self.time_alive * freq) * amp
+        elif self.pattern == "wave":
+            self.y += effective_speed * dt * 60
+            amp = self.pattern_data.get('amplitude', 50)
+            freq = self.pattern_data.get('frequency', 0.02)
+            self.x = self.base_x + math.sin(self.time_alive * freq) * amp
+        elif self.pattern == "circular":
+            # Move in a circular pattern while progressing downward
+            self.y += effective_speed * dt * 60 * 0.5  # Slower vertical
+            rad = self.pattern_data.get('radius', 50)
+            freq = self.pattern_data.get('frequency', 0.03)
+            phase = self.pattern_data.get('phase', 0)
+            self.x = self.base_x + math.cos(self.time_alive * freq + phase) * rad
+        elif self.pattern == "spiral":
+            # Spiral inward while moving down
+            self.y += effective_speed * dt * 60 * 0.3
+            initial_radius = self.pattern_data.get('initial_radius', 80)
+            freq = self.pattern_data.get('frequency', 0.03)
+            phase = self.pattern_data.get('phase', 0)
+            radius = max(5, initial_radius - self.time_alive * 0.5)
+            self.x = self.base_x + math.cos(self.time_alive * freq + phase) * radius
+        else:
+            self.y += effective_speed * dt * 60
+        
         return self.y < SCREEN_HEIGHT + self.radius + 20
 
     def draw(self, surface: pygame.Surface) -> None:

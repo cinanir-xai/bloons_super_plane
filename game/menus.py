@@ -420,7 +420,7 @@ class MainMenu:
 
 
 class LevelSelect:
-    """Level select screen with 2x3 grid of level icons."""
+    """Level select screen with 2x3 grid of level icons and pagination."""
     
     def __init__(self, unlocked_levels: int = 6, level_manager: LevelManager = None):
         self.selected_level = 1
@@ -432,24 +432,52 @@ class LevelSelect:
         self.icon_spacing_x = 280
         self.icon_spacing_y = 280
         self.start_x = (SCREEN_WIDTH - (self.cols * self.icon_spacing_x)) // 2 + 40
-        self.start_y = 250
+        self.start_y = 200
+        self.current_page = 0
+        self.levels_per_page = 6
+        self.total_levels = 12  # Updated for 12 levels
+    
+    def _get_levels_on_page(self) -> tuple:
+        """Get the range of levels on current page."""
+        start = self.current_page * self.levels_per_page + 1
+        end = min(start + self.levels_per_page - 1, self.total_levels)
+        return start, end
     
     def handle_event(self, event: pygame.event.Event) -> str:
-        """Handle input. Returns 'level_X', 'back', or 'none'."""
+        """Handle input. Returns 'level_X', 'back', 'next_page', 'prev_page', or 'none'."""
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_LEFT:
                 self.selected_level = max(1, self.selected_level - 1)
+                # Update page if needed
+                page = (self.selected_level - 1) // self.levels_per_page
+                self.current_page = page
             elif event.key == pygame.K_RIGHT:
                 self.selected_level = min(self.unlocked_levels, self.selected_level + 1)
+                # Update page if needed
+                page = (self.selected_level - 1) // self.levels_per_page
+                self.current_page = page
             elif event.key == pygame.K_UP:
                 self.selected_level = max(1, self.selected_level - self.cols)
+                page = (self.selected_level - 1) // self.levels_per_page
+                self.current_page = page
             elif event.key == pygame.K_DOWN:
                 self.selected_level = min(self.unlocked_levels, self.selected_level + self.cols)
+                page = (self.selected_level - 1) // self.levels_per_page
+                self.current_page = page
             elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                 if self.selected_level <= self.unlocked_levels:
                     return f'level_{self.selected_level}'
             elif event.key == pygame.K_ESCAPE:
                 return 'back'
+            elif event.key == pygame.K_PAGEUP or event.key == pygame.K_LEFTBRACKET:
+                if self.current_page > 0:
+                    self.current_page -= 1
+                    self.selected_level = self.current_page * self.levels_per_page + 1
+            elif event.key == pygame.K_PAGEDOWN or event.key == pygame.K_RIGHTBRACKET:
+                max_page = (self.total_levels - 1) // self.levels_per_page
+                if self.current_page < max_page:
+                    self.current_page += 1
+                    self.selected_level = self.current_page * self.levels_per_page + 1
         
         elif event.type == pygame.MOUSEBUTTONDOWN:
             mx, my = event.pos
@@ -458,8 +486,28 @@ class LevelSelect:
             if 50 <= mx <= 150 and 50 <= my <= 90:
                 return 'back'
             
-            # Check level icons
-            for i in range(6):
+            # Check page navigation buttons
+            # Previous page
+            if self.current_page > 0:
+                prev_x, prev_y = SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT - 60
+                if prev_x <= mx <= prev_x + 80 and prev_y <= my <= prev_y + 40:
+                    self.current_page -= 1
+                    self.selected_level = self.current_page * self.levels_per_page + 1
+            
+            # Next page
+            max_page = (self.total_levels - 1) // self.levels_per_page
+            if self.current_page < max_page:
+                next_x, next_y = SCREEN_WIDTH // 2 + 20, SCREEN_HEIGHT - 60
+                if next_x <= mx <= next_x + 80 and next_y <= my <= next_y + 40:
+                    self.current_page += 1
+                    self.selected_level = self.current_page * self.levels_per_page + 1
+            
+            # Check level icons on current page
+            start_level, end_level = self._get_levels_on_page()
+            for i in range(self.levels_per_page):
+                level_num = start_level + i
+                if level_num > end_level:
+                    break
                 col = i % self.cols
                 row = i // self.cols
                 icon_x = self.start_x + col * self.icon_spacing_x
@@ -467,7 +515,6 @@ class LevelSelect:
                 
                 if icon_x <= mx <= icon_x + self.icon_size:
                     if icon_y <= my <= icon_y + self.icon_size:
-                        level_num = i + 1
                         if level_num <= self.unlocked_levels:
                             return f'level_{level_num}'
         
@@ -480,10 +527,13 @@ class LevelSelect:
         font_large = pygame.font.Font(None, 72)
         font_medium = pygame.font.Font(None, 48)
         font_small = pygame.font.Font(None, 32)
+        font_tiny = pygame.font.Font(None, 24)
         
-        # Title
-        title = font_large.render("SELECT LEVEL", True, COLOR_YELLOW)
-        title_rect = title.get_rect(center=(SCREEN_WIDTH // 2, 80))
+        # Title with page indicator
+        start_level, end_level = self._get_levels_on_page()
+        title_text = f"SELECT LEVEL (Page {self.current_page + 1}/2)"
+        title = font_large.render(title_text, True, COLOR_YELLOW)
+        title_rect = title.get_rect(center=(SCREEN_WIDTH // 2, 60))
         surface.blit(title, title_rect)
         
         # Back button
@@ -492,9 +542,12 @@ class LevelSelect:
         back_text = font_small.render("BACK", True, COLOR_WHITE)
         surface.blit(back_text, (60, 60))
         
-        # Level icons in 2x3 grid
-        for i in range(6):
-            level_num = i + 1
+        # Level icons in 2x3 grid for current page
+        for i in range(self.levels_per_page):
+            level_num = start_level + i
+            if level_num > self.total_levels:
+                break
+                
             col = i % self.cols
             row = i // self.cols
             icon_x = self.start_x + col * self.icon_spacing_x
@@ -517,7 +570,7 @@ class LevelSelect:
             pygame.draw.rect(surface, bg_color, (icon_x, icon_y, self.icon_size, self.icon_size))
             pygame.draw.rect(surface, border_color, (icon_x, icon_y, self.icon_size, self.icon_size), 4)
             
-            # Level preview (mini scene)
+            # Level preview - show actual level balloons
             if not is_locked:
                 self._draw_level_preview(surface, icon_x, icon_y, level_num)
             else:
@@ -531,35 +584,102 @@ class LevelSelect:
                                                       icon_y + self.icon_size + 25))
             surface.blit(level_text, level_rect)
         
+        # Page navigation buttons
+        max_page = (self.total_levels - 1) // self.levels_per_page
+        nav_y = SCREEN_HEIGHT - 60
+        
+        if self.current_page > 0:
+            prev_x, prev_y = SCREEN_WIDTH // 2 - 100, nav_y
+            pygame.draw.rect(surface, (80, 80, 120), (prev_x, prev_y, 80, 40))
+            pygame.draw.rect(surface, COLOR_BLACK, (prev_x, prev_y, 80, 40), 2)
+            prev_text = font_small.render("<< PREV", True, COLOR_WHITE)
+            surface.blit(prev_text, (prev_x + 5, prev_y + 10))
+        
+        if self.current_page < max_page:
+            next_x, next_y = SCREEN_WIDTH // 2 + 20, nav_y
+            pygame.draw.rect(surface, (80, 80, 120), (next_x, next_y, 80, 40))
+            pygame.draw.rect(surface, COLOR_BLACK, (next_x, next_y, 80, 40), 2)
+            next_text = font_small.render("NEXT >>", True, COLOR_WHITE)
+            surface.blit(next_text, (next_x + 5, next_y + 10))
+        
+        # Page indicator dots
+        dot_y = nav_y - 20
+        for p in range(2):
+            dot_x = SCREEN_WIDTH // 2 - 20 + p * 40
+            color = COLOR_YELLOW if p == self.current_page else (80, 80, 100)
+            pygame.draw.circle(surface, color, (dot_x, dot_y), 8)
+            pygame.draw.circle(surface, COLOR_BLACK, (dot_x, dot_y), 8, 1)
+        
         # Instructions
-        instr = font_small.render("Arrow Keys + ENTER or Click to select level", True, (120, 120, 140))
-        instr_rect = instr.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 40))
+        instr = font_tiny.render("Arrow Keys + ENTER or Click | Page Up/Down or [ ] to change page", True, (120, 120, 140))
+        instr_rect = instr.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 20))
         surface.blit(instr, instr_rect)
     
     def _draw_level_preview(self, surface: pygame.Surface, x: int, y: int, level_num: int) -> None:
-        """Draw a mini preview of the level."""
-        preview_x = x + 20
-        preview_y = y + 20
-        preview_w = self.icon_size - 40
-        preview_h = self.icon_size - 60
+        """Draw a mini preview of the level showing actual balloon pattern."""
+        preview_x = x + 10
+        preview_y = y + 10
+        preview_w = self.icon_size - 20
+        preview_h = self.icon_size - 40
         
         # Mini sky background
-        pygame.draw.rect(surface, (100, 180, 255), (preview_x, preview_y, preview_w, preview_h // 2))
-        # Mini ground
-        pygame.draw.rect(surface, (34, 139, 34), (preview_x, preview_y + preview_h // 2, 
-                                                  preview_w, preview_h // 2))
+        pygame.draw.rect(surface, (100, 180, 255), (preview_x, preview_y, preview_w, preview_h))
         
-        # Draw balloons based on level
-        balloon_count = min(level_num * 2 + 2, 10)
-        colors = [COLOR_PINK, COLOR_YELLOW, COLOR_GREEN, COLOR_BLUE, COLOR_RED]
-        
-        for i in range(balloon_count):
-            bx = preview_x + 15 + (i % 5) * 30
-            by = preview_y + 20 + (i // 5) * 25
-            tier = min(i // 2, 4)
-            color = colors[tier]
-            pygame.draw.circle(surface, color, (bx, by), 8)
-            pygame.draw.circle(surface, COLOR_BLACK, (bx, by), 8, 1)
+        # Try to load actual level balloons and draw them
+        try:
+            from game.levels import get_level
+            level_module = get_level(level_num)
+            balloons = level_module.create_balloons()
+            
+            # Find bounds of balloons
+            if balloons:
+                min_x = min(b.x for b in balloons)
+                max_x = max(b.x for b in balloons)
+                min_y = min(b.y for b in balloons)
+                max_y = max(b.y for b in balloons)
+                
+                # Calculate scale to fit in preview
+                balloon_range_x = max_x - min_x if max_x > min_x else 1
+                balloon_range_y = max_y - min_y if max_y > min_y else 1
+                
+                scale_x = (preview_w - 20) / balloon_range_x
+                scale_y = (preview_h - 20) / balloon_range_y
+                scale = min(scale_x, scale_y, 1.5)  # Cap scale
+                
+                # Center offset
+                offset_x = preview_x + 10 + (preview_w - 20 - balloon_range_x * scale) / 2 - min_x * scale
+                offset_y = preview_y + 10 + (preview_h - 20 - balloon_range_y * scale) / 2 - min_y * scale
+                
+                # Colors for each tier
+                colors = [COLOR_PINK, COLOR_YELLOW, COLOR_GREEN, COLOR_BLUE, COLOR_RED]
+                
+                # Draw balloons (limit to prevent slowdown)
+                for balloon in balloons[:150]:  # Limit preview balloons
+                    bx = offset_x + balloon.x * scale
+                    by = offset_y + balloon.y * scale
+                    
+                    # Skip if off preview area
+                    if bx < preview_x or bx > preview_x + preview_w:
+                        continue
+                    if by < preview_y or by > preview_y + preview_h:
+                        continue
+                    
+                    radius = max(3, int(balloon.radius * scale * 0.8))
+                    color = colors[min(balloon.tier, 4)]
+                    pygame.draw.circle(surface, color, (int(bx), int(by)), radius)
+                    if radius > 4:
+                        pygame.draw.circle(surface, COLOR_BLACK, (int(bx), int(by)), radius, 1)
+        except Exception:
+            # Fallback to simple preview
+            colors = [COLOR_PINK, COLOR_YELLOW, COLOR_GREEN, COLOR_BLUE, COLOR_RED]
+            balloon_count = min(level_num * 2 + 2, 10)
+            for i in range(balloon_count):
+                bx = preview_x + 15 + (i % 5) * 30
+                by = preview_y + 20 + (i // 5) * 25
+                tier = min(i // 2, 4)
+                color = colors[tier]
+                pygame.draw.circle(surface, color, (bx, by), 8)
+                pygame.draw.circle(surface, COLOR_BLACK, (bx, by), 8, 1)
     
     def _draw_lock(self, surface: pygame.Surface, cx: int, cy: int) -> None:
         """Draw a lock icon."""
