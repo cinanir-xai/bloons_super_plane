@@ -8,6 +8,7 @@ from game.constants import (
     COLOR_YELLOW, COLOR_RED, COLOR_GREEN, COLOR_CYAN, COLOR_ORANGE,
     COLOR_BROWN, COLOR_BLUE, COLOR_PINK
 )
+
 from game.level_manager import LevelManager
 
 
@@ -746,7 +747,9 @@ class Shop:
                  laser_level: int = 0, missile_level: int = 0, boomerang_level: int = 0,
                  lightning_level: int = 0, wingman_level: int = 0,
                  orb_magnet_level: int = 0, orb_luck_level: int = 0,
-                 show_next_level: bool = False, level_num: int = 1, has_next: bool = True):
+                 show_next_level: bool = False, level_num: int = 1, has_next: bool = True,
+                 stars_earned: int = 0, perfect: bool = False, popped_ratio: float = 0.0,
+                 orbs_collected: int = 0):
         self.total_orbs = total_orbs
         self.dart_speed_level = dart_speed_level
         self.laser_level = laser_level
@@ -760,6 +763,10 @@ class Shop:
         self.show_next_level = show_next_level
         self.level_num = level_num
         self.has_next = has_next
+        self.stars_earned = stars_earned
+        self.perfect = perfect
+        self.popped_ratio = popped_ratio
+        self.orbs_collected = orbs_collected
         
         # Recalculate costs
         from game.constants import (
@@ -826,12 +833,17 @@ class Shop:
         else:
             self.orb_luck_cost = int(ORB_LUCK_BASE_COST * (ORB_LUCK_COST_MULTIPLIER ** (orb_luck_level - 1)))
         self.can_buy_orb_luck = self.total_orbs >= self.orb_luck_cost
+        self.star_fx_time = 0.0
+        self.star_sparkles = []
     
     def handle_event(self, event: pygame.event.Event) -> str:
         """Handle input. Returns 'buy_X', 'back', 'next_level', or 'none'."""
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 return 'back'
+            if self.show_next_level:
+                if event.key == pygame.K_r:
+                    return 'retry_level'
         
         elif event.type == pygame.MOUSEBUTTONDOWN:
             mx, my = event.pos
@@ -846,6 +858,12 @@ class Shop:
                 btn_y = SCREEN_HEIGHT - 80
                 if btn_x <= mx <= btn_x + 240 and btn_y <= my <= btn_y + 50:
                     return 'next_level'
+            
+            if self.show_next_level:
+                retry_x = SCREEN_WIDTH // 2 - 120
+                retry_y = SCREEN_HEIGHT - 140
+                if retry_x <= mx <= retry_x + 240 and retry_y <= my <= retry_y + 50:
+                    return 'retry_level'
             
             # Check upgrade buttons
             # 2x4 grid click detection (8 total)
@@ -1023,6 +1041,13 @@ class Shop:
         surface.blit(orb_text, orb_text_rect)
         orbs_label = font_tiny.render("ORBS", True, (150, 140, 130))
         surface.blit(orbs_label, (orb_x + 30, orb_y - 10))
+        if self.show_next_level:
+            gain_text = font_tiny.render(f"+{self.orbs_collected} THIS LEVEL", True, (200, 180, 130))
+            surface.blit(gain_text, (orb_x - 60, orb_y + 22))
+        
+        if self.show_next_level:
+            self._update_star_fx()
+            self._draw_star_summary(surface, font_small, font_tiny)
         
         # Back button - styled like a metal button
         back_x, back_y = 60, 110
@@ -1239,32 +1264,153 @@ class Shop:
                 stats_y += 22
         
         # Next level button at bottom if showing level complete
-        if self.show_next_level and self.has_next:
-            btn_x = SCREEN_WIDTH // 2 - 120
-            btn_y = SCREEN_HEIGHT - 80
-            # Check if hovered
+        if self.show_next_level:
             mx, my = pygame.mouse.get_pos()
-            is_hovered = btn_x <= mx <= btn_x + 240 and btn_y <= my <= btn_y + 50
+            retry_x = SCREEN_WIDTH // 2 - 120
+            retry_y = SCREEN_HEIGHT - 140
+            retry_hover = retry_x <= mx <= retry_x + 240 and retry_y <= my <= retry_y + 50
+            retry_color = (200, 160, 90) if retry_hover else (170, 130, 70)
+            pygame.draw.rect(surface, retry_color, (retry_x, retry_y, 240, 50), border_radius=8)
+            pygame.draw.rect(surface, COLOR_BLACK, (retry_x, retry_y, 240, 50), 3, border_radius=8)
+            retry_text = font_medium.render("RETRY", True, COLOR_BLACK)
+            retry_rect = retry_text.get_rect(center=(SCREEN_WIDTH // 2, retry_y + 25))
+            surface.blit(retry_text, retry_rect)
             
-            if is_hovered:
-                btn_color = (100, 200, 100)
-            else:
-                btn_color = COLOR_GREEN
-            
-            pygame.draw.rect(surface, btn_color, (btn_x, btn_y, 240, 50), border_radius=8)
-            pygame.draw.rect(surface, COLOR_BLACK, (btn_x, btn_y, 240, 50), 3, border_radius=8)
-            next_text = font_medium.render("NEXT LEVEL", True, COLOR_BLACK)
-            text_rect = next_text.get_rect(center=(SCREEN_WIDTH // 2, btn_y + 25))
-            surface.blit(next_text, text_rect)
+            if self.has_next:
+                btn_x = SCREEN_WIDTH // 2 - 120
+                btn_y = SCREEN_HEIGHT - 80
+                is_hovered = btn_x <= mx <= btn_x + 240 and btn_y <= my <= btn_y + 50
+                btn_color = (100, 200, 100) if is_hovered else COLOR_GREEN
+                pygame.draw.rect(surface, btn_color, (btn_x, btn_y, 240, 50), border_radius=8)
+                pygame.draw.rect(surface, COLOR_BLACK, (btn_x, btn_y, 240, 50), 3, border_radius=8)
+                next_text = font_medium.render("NEXT LEVEL", True, COLOR_BLACK)
+                text_rect = next_text.get_rect(center=(SCREEN_WIDTH // 2, btn_y + 25))
+                surface.blit(next_text, text_rect)
             
             # Instructions with next level info
-            instr = font_small.render("Buy upgrades | Click NEXT LEVEL to continue | ESC to go back", True, (130, 130, 140))
+            instr = font_small.render("Buy upgrades | RETRY or NEXT LEVEL | ESC to go back", True, (130, 130, 140))
         else:
             # Instructions
             instr = font_small.render("Hover for details | Click to buy | ESC to go back", True, (130, 130, 140))
         
         instr_rect = instr.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 30))
         surface.blit(instr, instr_rect)
+    
+    def _update_star_fx(self) -> None:
+        """Update star sparkle animations."""
+        now = pygame.time.get_ticks() / 1000.0
+        last_tick = getattr(self, "_last_star_tick", now)
+        dt = now - last_tick
+        self._last_star_tick = now
+        self.star_fx_time += dt
+        
+        if not self.star_sparkles:
+            return
+        
+        updated = []
+        for sparkle in self.star_sparkles:
+            sparkle["life"] -= dt
+            if sparkle["life"] <= 0:
+                continue
+            sparkle["x"] += sparkle["vx"] * dt
+            sparkle["y"] += sparkle["vy"] * dt
+            sparkle["vy"] += 25 * dt
+            sparkle["alpha"] = max(0, sparkle["alpha"] - dt * 160)
+            updated.append(sparkle)
+        self.star_sparkles = updated
+    
+    def _emit_star_sparkle(self, cx: float, cy: float, color: tuple) -> None:
+        """Spawn a sparkle near a star."""
+        if random.random() > 0.08:
+            return
+        angle = random.uniform(0, 2 * math.pi)
+        speed = random.uniform(15, 40)
+        self.star_sparkles.append({
+            "x": cx + random.uniform(-6, 6),
+            "y": cy + random.uniform(-6, 6),
+            "vx": math.cos(angle) * speed,
+            "vy": math.sin(angle) * speed - 20,
+            "life": random.uniform(0.4, 0.9),
+            "size": random.randint(2, 4),
+            "color": color,
+            "alpha": 200
+        })
+    
+    def _draw_star_summary(self, surface: pygame.Surface, font_small: pygame.font.Font, font_tiny: pygame.font.Font) -> None:
+        """Draw the stars earned popup."""
+        panel_w = 460
+        panel_h = 150
+        panel_x = SCREEN_WIDTH // 2 - panel_w // 2
+        panel_y = 115
+        
+        pygame.draw.rect(surface, (10, 10, 15), (panel_x + 5, panel_y + 5, panel_w, panel_h), border_radius=12)
+        pygame.draw.rect(surface, (32, 34, 50), (panel_x, panel_y, panel_w, panel_h), border_radius=12)
+        pygame.draw.rect(surface, (90, 95, 120), (panel_x, panel_y, panel_w, panel_h), 2, border_radius=12)
+        
+        header = font_small.render("STARS EARNED", True, COLOR_WHITE)
+        header_rect = header.get_rect(center=(SCREEN_WIDTH // 2, panel_y + 28))
+        surface.blit(header, header_rect)
+        
+        base_color = COLOR_WHITE if self.perfect and self.stars_earned >= 3 else COLOR_YELLOW
+        spacing = 65
+        star_y = panel_y + 78
+        
+        for i in range(3):
+            star_x = SCREEN_WIDTH // 2 - spacing + i * spacing
+            filled = i < self.stars_earned
+            if filled:
+                pulse = 1.0 + 0.05 * math.sin(self.star_fx_time * 3.5 + i)
+                self._draw_star(surface, star_x, star_y, 18 * pulse, base_color, hollow=False)
+                self._emit_star_sparkle(star_x, star_y, base_color)
+            else:
+                self._draw_star(surface, star_x, star_y, 16, (160, 165, 190), hollow=True)
+        
+        percent = int(self.popped_ratio * 100)
+        detail_color = (220, 220, 230) if not self.perfect else COLOR_CYAN
+        detail = font_tiny.render(f"Pop Accuracy: {percent}%", True, detail_color)
+        detail_rect = detail.get_rect(center=(SCREEN_WIDTH // 2, panel_y + 118))
+        surface.blit(detail, detail_rect)
+        
+        if self.perfect:
+            tag = font_tiny.render("PERFECT CLEAR!", True, COLOR_WHITE)
+            tag_rect = tag.get_rect(center=(SCREEN_WIDTH // 2, panel_y + 12))
+            surface.blit(tag, tag_rect)
+        
+        for sparkle in self.star_sparkles:
+            alpha = int(max(0, min(255, sparkle["alpha"])))
+            sparkle_color = (*sparkle["color"], alpha)
+            sparkle_surface = pygame.Surface((sparkle["size"] * 2 + 2, sparkle["size"] * 2 + 2), pygame.SRCALPHA)
+            pygame.draw.circle(
+                sparkle_surface,
+                sparkle_color,
+                (sparkle["size"] + 1, sparkle["size"] + 1),
+                sparkle["size"]
+            )
+            surface.blit(sparkle_surface, (sparkle["x"], sparkle["y"]))
+    
+    def _draw_star(self, surface: pygame.Surface, cx: float, cy: float, radius: float, color: tuple, hollow: bool = False) -> None:
+        """Draw a stylized star with optional glow."""
+        radius = max(6, radius)
+        glow_surface = pygame.Surface((radius * 4, radius * 4), pygame.SRCALPHA)
+        glow_color = (*color, 80) if not hollow else (0, 0, 0, 0)
+        if not hollow:
+            pygame.draw.circle(glow_surface, glow_color, (radius * 2, radius * 2), int(radius * 1.2))
+            surface.blit(glow_surface, (cx - radius * 2, cy - radius * 2))
+        
+        points = []
+        inner = radius * 0.5
+        for i in range(10):
+            angle = math.radians(i * 36 - 90)
+            r = radius if i % 2 == 0 else inner
+            points.append((cx + math.cos(angle) * r, cy + math.sin(angle) * r))
+        
+        if hollow:
+            pygame.draw.polygon(surface, color, points, 2)
+        else:
+            shadow_points = [(x + 2, y + 2) for x, y in points]
+            pygame.draw.polygon(surface, (20, 20, 30), shadow_points)
+            pygame.draw.polygon(surface, color, points)
+            pygame.draw.polygon(surface, COLOR_BLACK, points, 1)
     
     def _draw_large_icon(self, surface: pygame.Surface, cx: int, cy: int, index: int, color: tuple, can_buy: bool) -> None:
         """Draw a large icon for each upgrade in the workshop."""

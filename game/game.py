@@ -15,7 +15,6 @@ from .effects import Vignette, ScreenShake
 from .enemies import BalloonManager, Balloon
 from .orbs import OrbManager
 from .level_manager import LevelManager
-from .end_screen import EndScreen
 from .menus import MainMenu, LevelSelect, Shop
 
 
@@ -29,7 +28,7 @@ class Game:
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.clock = pygame.time.Clock()
         
-        # Game state: "main_menu", "level_select", "shop", "playing", "end_screen"
+        # Game state: "main_menu", "level_select", "shop", "playing"
         self.game_state = "main_menu"
         
         # Level management
@@ -46,9 +45,6 @@ class Game:
         self.main_menu = MainMenu()
         self.level_select = LevelSelect()
         self.shop = Shop()
-        
-        # End screen
-        self.end_screen = None
         
         # Visual effects
         self.screen_shake = ScreenShake()
@@ -119,7 +115,8 @@ class Game:
             orb_luck_level=self.orb_manager.orb_luck_level,
             show_next_level=True,
             level_num=self.level_manager.current_level_num,
-            has_next=self.level_manager.has_next_level()
+            has_next=self.level_manager.has_next_level(),
+            orbs_collected=orbs_this_level
         )
 
     def _get_level_unlocked(self, level_num: int) -> bool:
@@ -167,6 +164,7 @@ class Game:
                     # If we came from level complete, go to main menu
                     self.game_state = "main_menu"
                     self._sync_player_upgrades()
+                    pygame.mouse.set_visible(True)
                 elif result == 'next_level':
                     # Load next level and start playing
                     next_level = self.level_manager.get_next_level_num()
@@ -175,6 +173,12 @@ class Game:
                         self._load_level(next_level)
                         self.game_state = "playing"
                         pygame.mouse.set_visible(False)
+                    self._sync_player_upgrades()
+                elif result == 'retry_level':
+                    self.current_level = self.level_manager.current_level_num
+                    self._load_level(self.current_level)
+                    self.game_state = "playing"
+                    pygame.mouse.set_visible(False)
                     self._sync_player_upgrades()
                 elif result == 'buy_dart':
                     self.shop.buy_upgrade('dart')
@@ -197,8 +201,6 @@ class Game:
             
             elif self.game_state == "playing":
                 self._handle_playing_events(event)
-            elif self.game_state == "end_screen":
-                self._handle_end_screen_events(event)
 
     def _handle_playing_events(self, event: pygame.event.Event) -> None:
         """Handle events during gameplay."""
@@ -212,55 +214,6 @@ class Game:
         elif event.type == pygame.MOUSEMOTION:
             self.player.handle_mouse(event.pos)
 
-    def _handle_end_screen_events(self, event: pygame.event.Event) -> None:
-        """Handle events on end screen."""
-        result = self.end_screen.handle_event(event)
-        
-        if result == 'next':
-            # Load next level (requires unlock)
-            next_level = self.level_manager.get_next_level_num()
-            if self._get_level_unlocked(next_level):
-                self.current_level = next_level
-                self._load_level(next_level)
-                self.game_state = "playing"
-                pygame.mouse.set_visible(False)
-        elif result == 'menu':
-            # Go to main menu
-            self.game_state = "main_menu"
-            self._sync_shop_state()
-            pygame.mouse.set_visible(True)
-        elif result == 'buy_laser':
-            if self.orb_manager.total_orbs >= self.end_screen.laser_cost:
-                self.orb_manager.total_orbs -= self.end_screen.laser_cost
-                self.player.upgrade_laser()
-                self._on_level_complete()
-        elif result == 'buy_missile':
-            if self.orb_manager.total_orbs >= self.end_screen.missile_cost:
-                self.orb_manager.total_orbs -= self.end_screen.missile_cost
-                self.player.upgrade_missile()
-                self._on_level_complete()
-        elif result == 'buy_boomerang':
-            if self.orb_manager.total_orbs >= self.end_screen.boomerang_cost:
-                self.orb_manager.total_orbs -= self.end_screen.boomerang_cost
-                self.player.upgrade_boomerang()
-                self._on_level_complete()
-        elif result == 'buy_lightning':
-            if self.orb_manager.total_orbs >= self.end_screen.lightning_cost:
-                self.orb_manager.total_orbs -= self.end_screen.lightning_cost
-                self.player.upgrade_lightning()
-                self._on_level_complete()
-        elif result == 'buy_wingman':
-            if self.orb_manager.total_orbs >= self.end_screen.wingman_cost:
-                self.orb_manager.total_orbs -= self.end_screen.wingman_cost
-                self.player.upgrade_wingman()
-                self._on_level_complete()
-        elif result == 'buy_dart':
-            if self.orb_manager.total_orbs >= self.end_screen.dart_speed_cost:
-                self.orb_manager.total_orbs -= self.end_screen.dart_speed_cost
-                if not hasattr(self.player.dart_manager, 'dart_speed_level'):
-                    self.player.dart_manager.dart_speed_level = 0
-                self.player.dart_manager.dart_speed_level += 1
-                self._on_level_complete()
 
     def _sync_shop_state(self) -> None:
         """Sync shop state with player progress."""
@@ -312,7 +265,7 @@ class Game:
         
         if self.game_state == "playing":
             self._update_playing(dt)
-        # Menu states (main_menu, level_select, shop, end_screen) don't need update
+        # Menu states (main_menu, level_select, shop) don't need update
 
     def _update_playing(self, dt: float) -> None:
         """Update gameplay."""
@@ -464,12 +417,9 @@ class Game:
             self.unlocked_levels = max(self.unlocked_levels, self.level_manager.current_level_num + 1)
         
         orbs_this_level = self.orb_manager.total_orbs - self.level_start_orbs
-        self.game_state = "end_screen"
+        self.game_state = "shop"
         pygame.mouse.set_visible(True)
-        self.end_screen = EndScreen(
-            orbs_collected=orbs_this_level,
-            level_num=self.level_manager.current_level_num,
-            has_next=self.level_manager.has_next_level() and (best_stars >= 1 or self.debug_unlock_all),
+        self.shop = Shop(
             total_orbs=self.orb_manager.total_orbs,
             dart_speed_level=self.player.dart_manager.dart_speed_level if hasattr(self.player.dart_manager, 'dart_speed_level') else 0,
             laser_level=self.player.laser_level,
@@ -477,9 +427,15 @@ class Game:
             boomerang_level=self.player.boomerang_level,
             lightning_level=self.player.lightning_level,
             wingman_level=self.player.wingman_level,
+            orb_magnet_level=self.orb_manager.magnet_level,
+            orb_luck_level=self.orb_manager.orb_luck_level,
+            show_next_level=True,
+            level_num=self.level_manager.current_level_num,
+            has_next=self.level_manager.has_next_level() and (best_stars >= 1 or self.debug_unlock_all),
             stars_earned=stars,
             perfect=perfect,
-            popped_ratio=ratio
+            popped_ratio=ratio,
+            orbs_collected=orbs_this_level
         )
         self.level_manager.level_complete = False
 
@@ -588,8 +544,6 @@ class Game:
             self.shop.draw(self.screen)
         elif self.game_state == "playing":
             self._draw_playing(shake_offset)
-        elif self.game_state == "end_screen":
-            self.end_screen.draw(self.screen)
         
         pygame.display.flip()
 

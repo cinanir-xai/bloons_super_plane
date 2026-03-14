@@ -1,4 +1,4 @@
-"""Level 6 - Mixed Balloons (50 of each type)."""
+"""Level 6 - Mixed Balloons (15x15 per color)."""
 
 from typing import List
 from ..enemies import Balloon, get_balloon_radius
@@ -9,10 +9,10 @@ LEVEL_NAME = "Rainbow Rush"
 BALLOON_TIER = 0  # Mixed
 
 def create_balloons() -> List[Balloon]:
-    """Create 50 of each balloon type (250 total)."""
+    """Create 15x15 grid for each balloon type (1125 total)."""
     balloons = []
-    cols = 10
-    rows_per_type = 5  # 5 rows of 10 = 50 per type
+    cols = 15
+    rows_per_type = 15
     
     # Use red balloon (smallest) as base for consistent spacing
     # All balloons will be almost touching or slightly overlapping
@@ -47,4 +47,4 @@ def create_balloons() -> List[Balloon]:
     return balloons
 
 def get_total_balloons() -> int:
-    return 250
+    return 1125

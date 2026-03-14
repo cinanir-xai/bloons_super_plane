@@ -1,4 +1,4 @@
-"""Level 4 - Yellow Balloons (10x10 grid)."""
+"""Level 4 - Yellow Balloons (15x15 grid)."""
 
 from typing import List
 from game.enemies import Balloon, get_balloon_radius
@@ -9,10 +9,10 @@ LEVEL_NAME = "Yellow Blaze"
 BALLOON_TIER = 1  # Yellow
 
 def create_balloons() -> List[Balloon]:
-    """Create 10x10 grid of yellow balloons."""
+    """Create 15x15 grid of yellow balloons."""
     balloons = []
-    cols = 10
-    rows = 10
+    cols = 15
+    rows = 15
     # Calculate spacing based on balloon radius with 80% reduced gap (almost touching)
     balloon_radius = get_balloon_radius(BALLOON_TIER)
     balloon_diameter = balloon_radius * 2
@@ -41,4 +41,4 @@ def create_balloons() -> List[Balloon]:
     return balloons
 
 def get_total_balloons() -> int:
-    return 100
+    return 225

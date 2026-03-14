@@ -1,4 +1,4 @@
-"""Level 1 - Red Balloons (10x10 grid)."""
+"""Level 1 - Red Balloons (15x15 grid)."""
 
 import sys
 import os
@@ -13,10 +13,10 @@ LEVEL_NAME = "Red Swarm"
 BALLOON_TIER = 4  # Red
 
 def create_balloons() -> List[Balloon]:
-    """Create 10x10 grid of red balloons."""
+    """Create 15x15 grid of red balloons."""
     balloons = []
-    cols = 10
-    rows = 10
+    cols = 15
+    rows = 15
     # Calculate spacing based on balloon radius with 80% reduced gap (almost touching)
     balloon_radius = get_balloon_radius(BALLOON_TIER)
     balloon_diameter = balloon_radius * 2
@@ -45,4 +45,4 @@ def create_balloons() -> List[Balloon]:
     return balloons
 
 def get_total_balloons() -> int:
-    return 100
+    return 225
