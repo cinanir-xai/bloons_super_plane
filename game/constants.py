@@ -85,6 +85,17 @@ BOOMERANG_WIDTH = 40
 BOOMERANG_HEIGHT = 40
 COLOR_BROWN = (139, 69, 19)
 
+# Lightning settings
+LIGHTNING_UNLOCK_COST = 200  # Cost to unlock the weapon
+LIGHTNING_BASE_COST = 100  # First upgrade cost after unlock
+LIGHTNING_COST_MULTIPLIER = 1.5
+LIGHTNING_BASE_COOLDOWN = 3000  # ms
+LIGHTNING_COOLDOWN_REDUCTION = 0.10  # 10% per level
+LIGHTNING_BASE_ARCS = 4  # base extra targets
+LIGHTNING_ARC_GROWTH = 2  # extra arcs per level
+LIGHTNING_STRIKE_COLOR = (160, 90, 255)
+LIGHTNING_GLOW_COLOR = (210, 160, 255)
+
 # Background settings
 CLOUD_COUNT = 12
 TREE_COUNT = 20

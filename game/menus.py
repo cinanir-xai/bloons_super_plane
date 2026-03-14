@@ -267,12 +267,14 @@ class Shop:
     """Shop screen accessible from main menu."""
     
     def __init__(self, total_orbs: int = 0, dart_speed_level: int = 0,
-                 laser_level: int = 0, missile_level: int = 0, boomerang_level: int = 0):
+                 laser_level: int = 0, missile_level: int = 0, boomerang_level: int = 0,
+                 lightning_level: int = 0):
         self.total_orbs = total_orbs
         self.dart_speed_level = dart_speed_level
         self.laser_level = laser_level
         self.missile_level = missile_level
         self.boomerang_level = boomerang_level
+        self.lightning_level = lightning_level
         self.selected_option = 0  # 0 = back
         
         # Recalculate costs
@@ -280,7 +282,8 @@ class Shop:
             UPGRADE_DART_SPEED_BASE_COST, UPGRADE_DART_SPEED_COST_MULTIPLIER,
             LASER_UNLOCK_COST, LASER_BASE_COST, LASER_COST_MULTIPLIER,
             MISSILE_UNLOCK_COST, MISSILE_BASE_COST, MISSILE_COST_MULTIPLIER,
-            BOOMERANG_UNLOCK_COST, BOOMERANG_BASE_COST, BOOMERANG_COST_MULTIPLIER
+            BOOMERANG_UNLOCK_COST, BOOMERANG_BASE_COST, BOOMERANG_COST_MULTIPLIER,
+            LIGHTNING_UNLOCK_COST, LIGHTNING_BASE_COST, LIGHTNING_COST_MULTIPLIER
         )
         
         # Dart: unlocked from beginning, upgrades start at 100, increase by 50%
@@ -308,6 +311,13 @@ class Shop:
         else:
             self.boomerang_cost = int(BOOMERANG_BASE_COST * (BOOMERANG_COST_MULTIPLIER ** (boomerang_level - 1)))
         self.can_buy_boomerang = self.total_orbs >= self.boomerang_cost
+
+        # Lightning: 200 to unlock, then 100 * 1.5^(level-1) for upgrades
+        if lightning_level == 0:
+            self.lightning_cost = LIGHTNING_UNLOCK_COST
+        else:
+            self.lightning_cost = int(LIGHTNING_BASE_COST * (LIGHTNING_COST_MULTIPLIER ** (lightning_level - 1)))
+        self.can_buy_lightning = self.total_orbs >= self.lightning_cost
     
     def handle_event(self, event: pygame.event.Event) -> str:
         """Handle input. Returns 'buy_X', 'back', or 'none'."""
@@ -328,7 +338,7 @@ class Shop:
             btn_width = 350
             btn_height = 80
             
-            for i in range(4):
+            for i in range(5):
                 if btn_x <= mx <= btn_x + btn_width:
                     if btn_y + i * 100 <= my <= btn_y + i * 100 + btn_height:
                         if i == 0 and self.can_buy_dart_speed:
@@ -339,6 +349,8 @@ class Shop:
                             return 'buy_missile'
                         elif i == 3 and self.can_buy_boomerang:
                             return 'buy_boomerang'
+                        elif i == 4 and self.can_buy_lightning:
+                            return 'buy_lightning'
         
         return 'none'
     
@@ -348,7 +360,8 @@ class Shop:
             UPGRADE_DART_SPEED_BASE_COST, UPGRADE_DART_SPEED_COST_MULTIPLIER,
             LASER_UNLOCK_COST, LASER_BASE_COST, LASER_COST_MULTIPLIER,
             MISSILE_UNLOCK_COST, MISSILE_BASE_COST, MISSILE_COST_MULTIPLIER,
-            BOOMERANG_UNLOCK_COST, BOOMERANG_BASE_COST, BOOMERANG_COST_MULTIPLIER
+            BOOMERANG_UNLOCK_COST, BOOMERANG_BASE_COST, BOOMERANG_COST_MULTIPLIER,
+            LIGHTNING_UNLOCK_COST, LIGHTNING_BASE_COST, LIGHTNING_COST_MULTIPLIER
         )
         
         if upgrade_type == 'dart' and self.can_buy_dart_speed:
@@ -387,6 +400,16 @@ class Shop:
             else:
                 self.boomerang_cost = int(BOOMERANG_BASE_COST * (BOOMERANG_COST_MULTIPLIER ** (self.boomerang_level - 1)))
             self.can_buy_boomerang = self.total_orbs >= self.boomerang_cost
+            return True
+        elif upgrade_type == 'lightning' and self.can_buy_lightning:
+            self.total_orbs -= self.lightning_cost
+            self.lightning_level += 1
+            # After unlock, upgrades cost 100 * 1.5^(level-1)
+            if self.lightning_level == 1:
+                self.lightning_cost = LIGHTNING_BASE_COST
+            else:
+                self.lightning_cost = int(LIGHTNING_BASE_COST * (LIGHTNING_COST_MULTIPLIER ** (self.lightning_level - 1)))
+            self.can_buy_lightning = self.total_orbs >= self.lightning_cost
             return True
         return False
     
@@ -427,7 +450,9 @@ class Shop:
             ("Missiles", self.missile_level, self.missile_cost,
              self.can_buy_missile, COLOR_ORANGE),
             ("Boomerang", self.boomerang_level, self.boomerang_cost,
-             self.can_buy_boomerang, COLOR_BROWN)
+             self.can_buy_boomerang, COLOR_BROWN),
+            ("Lightning", self.lightning_level, self.lightning_cost,
+             self.can_buy_lightning, (180, 120, 255))
         ]
         
         btn_x = 100
@@ -549,3 +574,16 @@ class Shop:
             pygame.draw.polygon(surface, COLOR_BLACK, points, 2)
             # Highlight
             pygame.draw.line(surface, (180, 100, 60), (cx - 8, cy - 8), (cx + 8, cy - 8), 2)
+
+        elif index == 4:  # Lightning icon
+            # Outer glow
+            pygame.draw.line(surface, (210, 160, 255), (cx - 8, cy - 14), (cx + 2, cy - 2), 5)
+            pygame.draw.line(surface, (210, 160, 255), (cx + 2, cy - 2), (cx - 2, cy + 12), 5)
+            # Main bolt
+            pygame.draw.line(surface, (160, 90, 255), (cx - 6, cy - 12), (cx + 2, cy - 2), 3)
+            pygame.draw.line(surface, (160, 90, 255), (cx + 2, cy - 2), (cx - 1, cy + 10), 3)
+            # Inner core
+            pygame.draw.line(surface, COLOR_WHITE, (cx - 6, cy - 12), (cx + 2, cy - 2), 1)
+            pygame.draw.line(surface, COLOR_WHITE, (cx + 2, cy - 2), (cx - 1, cy + 10), 1)
+            # Sparkle
+            pygame.draw.circle(surface, COLOR_WHITE, (cx - 2, cy - 6), 2)

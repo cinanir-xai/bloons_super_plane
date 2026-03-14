@@ -1,18 +1,22 @@
 """Projectile classes for the game - Retro Atari Inspired."""
 
 import pygame
-from typing import List
-from dataclasses import dataclass
+from typing import List, Tuple
+from dataclasses import dataclass, field
 
 from .constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, DART_SPEED, DART_WIDTH, DART_HEIGHT,
     DART_LIFETIME, COLOR_WHITE, COLOR_YELLOW, COLOR_CYAN, LASER_WIDTH,
     COLOR_RED, MISSILE_SPEED, MISSILE_WIDTH, MISSILE_HEIGHT,
     BOOMERANG_WIDTH, BOOMERANG_HEIGHT, COLOR_BROWN, BOOMERANG_ORBIT_RADIUS,
-    BOOMERANG_SPEED, COLOR_BLACK
+    BOOMERANG_SPEED, COLOR_BLACK,
+    LIGHTNING_BASE_COOLDOWN, LIGHTNING_COOLDOWN_REDUCTION,
+    LIGHTNING_BASE_ARCS, LIGHTNING_ARC_GROWTH,
+    LIGHTNING_STRIKE_COLOR, LIGHTNING_GLOW_COLOR
 )
 from .effects import DartTrail, ParticleSystem, MissileTrail, Explosion
 import math
+import random
 
 
 @dataclass
@@ -432,3 +436,114 @@ class DartManager:
         """Remove a specific dart."""
         if dart in self.darts:
             self.darts.remove(dart)
+
+
+@dataclass
+class LightningStrike:
+    """Lightning strike visual effect."""
+    start_pos: Tuple[float, float]
+    end_pos: Tuple[float, float]
+    duration: float = 0.2  # seconds
+    timer: float = 0.0
+    segments: List[Tuple[float, float]] = field(default_factory=list)
+
+    def __post_init__(self):
+        if not self.segments:
+            self._generate_segments()
+
+    def _generate_segments(self):
+        """Generate jagged lightning path."""
+        self.segments = []
+        sx, sy = self.start_pos
+        ex, ey = self.end_pos
+        
+        # Create jagged segments
+        num_segments = 8
+        for i in range(num_segments + 1):
+            t = i / num_segments
+            x = sx + (ex - sx) * t
+            y = sy + (ey - sy) * t
+            
+            # Add jitter except for endpoints
+            if 0 < i < num_segments:
+                x += random.uniform(-12, 12)
+                y += random.uniform(-8, 8)
+            self.segments.append((x, y))
+
+    def update(self, dt: float) -> bool:
+        """Update effect. Returns False when done."""
+        self.timer += dt
+        return self.timer < self.duration
+
+    def draw(self, surface: pygame.Surface) -> None:
+        """Draw lightning strike."""
+        if not self.segments or len(self.segments) < 2:
+            return
+        
+        # Flicker intensity
+        flicker = 0.6 + 0.4 * math.sin(self.timer * 35)
+        glow_width = int(6 + 2 * flicker)
+        core_width = max(1, int(2 * flicker))
+        
+        # Draw glow
+        for i in range(len(self.segments) - 1):
+            pygame.draw.line(surface, LIGHTNING_GLOW_COLOR, 
+                           self.segments[i], self.segments[i+1], glow_width)
+        
+        # Draw main lightning
+        for i in range(len(self.segments) - 1):
+            pygame.draw.line(surface, LIGHTNING_STRIKE_COLOR,
+                           self.segments[i], self.segments[i+1], 3)
+        
+        # Inner bright core
+        for i in range(len(self.segments) - 1):
+            pygame.draw.line(surface, COLOR_WHITE,
+                           self.segments[i], self.segments[i+1], core_width)
+        
+        # Add small sparkles
+        if random.random() > 0.6:
+            idx = random.randint(0, len(self.segments) - 2)
+            sx, sy = self.segments[idx]
+            pygame.draw.circle(surface, COLOR_WHITE, (int(sx), int(sy)), 2)
+
+
+class LightningManager:
+    """Manages lightning strikes and cooldown."""
+    
+    def __init__(self, level: int = 0):
+        self.level = level
+        self.cooldown_timer = 0
+        self.strikes: List[LightningStrike] = []
+
+    def update(self, dt: float) -> None:
+        """Update cooldown and active strikes."""
+        self.cooldown_timer = max(0, self.cooldown_timer - dt * 1000)
+        self.strikes = [s for s in self.strikes if s.update(dt)]
+
+    def can_strike(self) -> bool:
+        """Check if lightning can strike."""
+        return self.level > 0 and self.cooldown_timer <= 0
+
+    def trigger_strike(self, start_pos: Tuple[float, float], end_pos: Tuple[float, float], apply_cooldown: bool = True) -> None:
+        """Trigger a lightning strike effect."""
+        self.strikes.append(LightningStrike(start_pos, end_pos))
+        if apply_cooldown:
+            self.cooldown_timer = self.get_cooldown()
+
+    def get_cooldown(self) -> float:
+        """Get current cooldown based on level."""
+        if self.level <= 0:
+            return LIGHTNING_BASE_COOLDOWN
+        # Apply cooldown reduction per level
+        return LIGHTNING_BASE_COOLDOWN * ((1 - LIGHTNING_COOLDOWN_REDUCTION) ** (self.level - 1))
+
+    def get_arc_count(self) -> int:
+        """Get number of extra targets."""
+        if self.level <= 0:
+            return 0
+        return LIGHTNING_BASE_ARCS + (self.level - 1) * LIGHTNING_ARC_GROWTH
+
+    def draw(self, surface: pygame.Surface) -> None:
+        """Draw all active lightning strikes."""
+        for strike in self.strikes:
+            strike.draw(surface)

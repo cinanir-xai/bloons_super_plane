@@ -8,6 +8,8 @@ from game.constants import (
     LASER_UNLOCK_COST, LASER_BASE_COST, LASER_COST_MULTIPLIER,
     MISSILE_UNLOCK_COST, MISSILE_BASE_COST, MISSILE_COST_MULTIPLIER,
     BOOMERANG_UNLOCK_COST, BOOMERANG_BASE_COST, BOOMERANG_COST_MULTIPLIER,
+    LIGHTNING_UNLOCK_COST, LIGHTNING_BASE_COST, LIGHTNING_COST_MULTIPLIER,
+    LIGHTNING_STRIKE_COLOR, LIGHTNING_GLOW_COLOR,
     COLOR_BROWN
 )
 
@@ -16,7 +18,7 @@ class EndScreen:
     
     def __init__(self, orbs_collected: int, level_num: int, has_next: bool, 
                  total_orbs: int = 0, dart_speed_level: int = 0, laser_level: int = 0,
-                 missile_level: int = 0, boomerang_level: int = 0):
+                 missile_level: int = 0, boomerang_level: int = 0, lightning_level: int = 0):
         self.orbs_collected = orbs_collected
         self.level_num = level_num
         self.has_next = has_next
@@ -25,6 +27,7 @@ class EndScreen:
         self.laser_level = laser_level
         self.missile_level = missile_level
         self.boomerang_level = boomerang_level
+        self.lightning_level = lightning_level
         self.selected_option = 0  # 0 = next level, 1 = quit
         
         # Upgrade state - Dart: unlocked from beginning, upgrades start at 100, increase by 50%
@@ -51,6 +54,13 @@ class EndScreen:
         else:
             self.boomerang_cost = int(BOOMERANG_BASE_COST * (BOOMERANG_COST_MULTIPLIER ** (boomerang_level - 1)))
         self.can_buy_boomerang = self.total_orbs >= self.boomerang_cost
+
+        # Lightning: 200 to unlock, then 100 * 1.5^(level-1) for upgrades
+        if lightning_level == 0:
+            self.lightning_cost = LIGHTNING_UNLOCK_COST
+        else:
+            self.lightning_cost = int(LIGHTNING_BASE_COST * (LIGHTNING_COST_MULTIPLIER ** (lightning_level - 1)))
+        self.can_buy_lightning = self.total_orbs >= self.lightning_cost
         
         # Upgrade layout: 2 columns x 3 rows
         self.upgrade_cols = 2
@@ -62,7 +72,7 @@ class EndScreen:
         self.upgrade_start_y = 350
         
     def handle_event(self, event: pygame.event.Event) -> str:
-        """Handle input. Returns 'next', 'menu', 'quit', 'buy_dart', 'buy_laser', 'buy_missile', 'buy_boomerang', or 'none'."""
+        """Handle input. Returns 'next', 'menu', 'quit', 'buy_dart', 'buy_laser', 'buy_missile', 'buy_boomerang', 'buy_lightning', or 'none'."""
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                 if self.selected_option == 0:
@@ -92,6 +102,8 @@ class EndScreen:
                             return 'buy_missile'
                         elif i == 3 and self.can_buy_boomerang:
                             return 'buy_boomerang'
+                        elif i == 4 and self.can_buy_lightning:
+                            return 'buy_lightning'
                         return 'none'
             
             # Check next/menu buttons
@@ -144,7 +156,7 @@ class EndScreen:
             ("Laser Beam", self.laser_level, self.laser_cost, self.can_buy_laser, self._draw_laser_icon),
             ("Missiles", self.missile_level, self.missile_cost, self.can_buy_missile, self._draw_missile_icon),
             ("Boomerang", self.boomerang_level, self.boomerang_cost, self.can_buy_boomerang, self._draw_boomerang_icon),
-            ("Locked", 0, 0, False, self._draw_locked_icon),
+            ("Lightning", self.lightning_level, self.lightning_cost, self.can_buy_lightning, self._draw_lightning_icon),
             ("Locked", 0, 0, False, self._draw_locked_icon)
         ]
         
@@ -253,6 +265,22 @@ class EndScreen:
         ]
         pygame.draw.polygon(surface, COLOR_BROWN, points)
         pygame.draw.polygon(surface, COLOR_BLACK, points, 2)
+
+    def _draw_lightning_icon(self, surface: pygame.Surface, cx: int, cy: int, scale: float = 1.0) -> None:
+        """Draw a lightning icon."""
+        glow_color = (*LIGHTNING_GLOW_COLOR, 180)
+        bolt_color = LIGHTNING_STRIKE_COLOR
+        # Glow bolts
+        pygame.draw.line(surface, glow_color, (cx - 12 * scale, cy - 18 * scale), (cx + 3 * scale, cy - 2 * scale), int(5 * scale))
+        pygame.draw.line(surface, glow_color, (cx + 3 * scale, cy - 2 * scale), (cx - 2 * scale, cy + 16 * scale), int(5 * scale))
+        # Main bolt
+        pygame.draw.line(surface, bolt_color, (cx - 10 * scale, cy - 16 * scale), (cx + 3 * scale, cy - 2 * scale), int(3 * scale))
+        pygame.draw.line(surface, bolt_color, (cx + 3 * scale, cy - 2 * scale), (cx - 1 * scale, cy + 14 * scale), int(3 * scale))
+        # Core
+        pygame.draw.line(surface, COLOR_WHITE, (cx - 10 * scale, cy - 16 * scale), (cx + 3 * scale, cy - 2 * scale), int(1 * scale))
+        pygame.draw.line(surface, COLOR_WHITE, (cx + 3 * scale, cy - 2 * scale), (cx - 1 * scale, cy + 14 * scale), int(1 * scale))
+        # Sparkle
+        pygame.draw.circle(surface, COLOR_WHITE, (cx - 2 * scale, cy - 8 * scale), int(2 * scale))
 
     def _draw_locked_icon(self, surface: pygame.Surface, cx: int, cy: int, scale: float = 1.0) -> None:
         """Draw a locked padlock icon."""

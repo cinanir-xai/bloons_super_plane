@@ -4,7 +4,7 @@ import pygame
 import math
 import random
 from typing import List, Tuple
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, SCENERY_SPEED,
@@ -175,6 +175,12 @@ class FlowerPatch:
     x: float
     y: float
     size: float
+    flower_colors: List[Tuple[int, int, int]] = field(default_factory=list)
+
+    def __post_init__(self):
+        if not self.flower_colors:
+            base_colors = [(255, 100, 150), (255, 255, 100), (200, 100, 255), (255, 150, 50)]
+            self.flower_colors = [random.choice(base_colors) for _ in range(6)]
 
     def update(self, dt: float) -> None:
         self.y += GROUND_SPEED * dt * 60
@@ -189,13 +195,12 @@ class FlowerPatch:
         # Green base
         pygame.draw.circle(surface, (60, 180, 60), (cx, cy), s//2)
         
-        # Flowers
-        colors = [(255, 100, 150), (255, 255, 100), (200, 100, 255), (255, 150, 50)]
+        # Flowers (fixed colors per patch)
         for i in range(6):
             angle = i * (2 * math.pi / 6)
             fx = cx + math.cos(angle) * s * 0.25
             fy = cy + math.sin(angle) * s * 0.25
-            pygame.draw.circle(surface, random.choice(colors), (int(fx), int(fy)), 4)
+            pygame.draw.circle(surface, self.flower_colors[i], (int(fx), int(fy)), 4)
             pygame.draw.circle(surface, (255, 255, 200), (int(fx), int(fy)), 2)
 
 
@@ -279,12 +284,20 @@ class Background:
         """Generate ground layer items."""
         self.ground_items = []
         
+        # Helper to ensure items stay out of river area
+        def get_safe_x(base_x: float, spread: float) -> float:
+            while True:
+                x = base_x + random.uniform(-spread, spread)
+                # Keep items away from river center band
+                if x < SCREEN_WIDTH // 2 - RIVER_WIDTH // 2 - 40 or x > SCREEN_WIDTH // 2 + RIVER_WIDTH // 2 + 40:
+                    return x
+        
         for side in [-1, 1]:  # Left and right of river
             base_x = SCREEN_WIDTH // 4 if side == -1 else SCREEN_WIDTH * 3 // 4
             
             # Trees
             for _ in range(18):
-                x = base_x + random.uniform(-SCREEN_WIDTH//6, SCREEN_WIDTH//6)
+                x = get_safe_x(base_x, SCREEN_WIDTH // 6)
                 y = random.uniform(-300, SCREEN_HEIGHT + 300)
                 tree_type = random.randint(0, 2)
                 size = random.uniform(35, 55)
@@ -292,7 +305,7 @@ class Background:
             
             # Forests
             for _ in range(4):
-                x = base_x + random.uniform(-SCREEN_WIDTH//8, SCREEN_WIDTH//8)
+                x = get_safe_x(base_x, SCREEN_WIDTH // 8)
                 y = random.uniform(-300, SCREEN_HEIGHT + 300)
                 forest = Forest(x, y, 80, [])
                 for _ in range(10):
@@ -304,19 +317,19 @@ class Background:
             
             # Farmland
             for _ in range(5):
-                x = base_x + random.uniform(-SCREEN_WIDTH//8, SCREEN_WIDTH//8)
+                x = get_safe_x(base_x, SCREEN_WIDTH // 8)
                 y = random.uniform(-300, SCREEN_HEIGHT + 300)
                 self.ground_items.append(Farmland(x, y, random.uniform(40, 60)))
             
             # Flower patches
             for _ in range(6):
-                x = base_x + random.uniform(-SCREEN_WIDTH//8, SCREEN_WIDTH//8)
+                x = get_safe_x(base_x, SCREEN_WIDTH // 8)
                 y = random.uniform(-300, SCREEN_HEIGHT + 300)
                 self.ground_items.append(FlowerPatch(x, y, random.uniform(25, 40)))
             
             # Houses
             for _ in range(3):
-                x = base_x + random.uniform(-SCREEN_WIDTH//10, SCREEN_WIDTH//10)
+                x = get_safe_x(base_x, SCREEN_WIDTH // 10)
                 y = random.uniform(-300, SCREEN_HEIGHT + 300)
                 colors = [(200, 180, 160), (180, 160, 140), (220, 200, 180)]
                 self.ground_items.append(House(x, y, random.uniform(35, 50), random.choice(colors)))
@@ -352,11 +365,11 @@ class Background:
         for item in self.ground_items:
             if item.is_off_screen():
                 item.y = random.uniform(-400, -150)
-                # Keep on correct side
+                # Keep on correct side and out of river
                 if item.x < SCREEN_WIDTH // 2:
-                    item.x = random.uniform(20, SCREEN_WIDTH//3 - 20)
+                    item.x = random.uniform(20, SCREEN_WIDTH//2 - RIVER_WIDTH//2 - 40)
                 else:
-                    item.x = random.uniform(SCREEN_WIDTH * 2//3 + 20, SCREEN_WIDTH - 20)
+                    item.x = random.uniform(SCREEN_WIDTH//2 + RIVER_WIDTH//2 + 40, SCREEN_WIDTH - 20)
 
     def draw(self, surface: pygame.Surface) -> None:
         # 1. Solid green background

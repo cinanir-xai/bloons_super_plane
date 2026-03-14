@@ -10,10 +10,11 @@ from .constants import (
     COLOR_RED, COLOR_RED_DARK, COLOR_WHITE, COLOR_CYAN, COLOR_BLACK,
     LASER_BASE_COOLDOWN, LASER_BASE_DURATION, LASER_UPGRADE_COOLDOWN_REDUCTION,
     LASER_UPGRADE_DURATION_REDUCTION,
-    MISSILE_COOLDOWN, MISSILE_BASE_AOE_RADIUS, MISSILE_UPGRADE_AOE_GROWTH
+    MISSILE_COOLDOWN, MISSILE_BASE_AOE_RADIUS, MISSILE_UPGRADE_AOE_GROWTH,
+    LIGHTNING_BASE_COOLDOWN, LIGHTNING_COOLDOWN_REDUCTION
 )
 from .effects import EngineGlow, MuzzleFlash
-from .projectiles import DartManager, Laser, MissileManager, BoomerangManager
+from .projectiles import DartManager, Laser, MissileManager, BoomerangManager, LightningManager
 
 
 @dataclass
@@ -47,6 +48,11 @@ class Player:
     boomerang_level: int
     boomerang_manager: BoomerangManager
 
+    # Lightning state
+    has_lightning: bool
+    lightning_level: int
+    lightning_manager: LightningManager
+
     def __init__(self, x: float, y: float):
         self.x = x
         self.y = y
@@ -75,6 +81,11 @@ class Player:
         self.has_boomerang = False
         self.boomerang_level = 0
         self.boomerang_manager = BoomerangManager()
+        
+        # Lightning initialization
+        self.has_lightning = False
+        self.lightning_level = 0
+        self.lightning_manager = LightningManager()
 
     def upgrade_laser(self) -> None:
         """Upgrade or buy laser."""
@@ -111,6 +122,16 @@ class Player:
             self.boomerang_level += 1
         
         self.boomerang_manager.set_count(self.boomerang_level)
+
+    def upgrade_lightning(self) -> None:
+        """Upgrade or buy lightning strike."""
+        if not self.has_lightning:
+            self.has_lightning = True
+            self.lightning_level = 1
+        else:
+            self.lightning_level += 1
+        
+        self.lightning_manager.level = self.lightning_level
 
     def handle_mouse(self, pos: Tuple[int, int]) -> None:
         self.target_x = pos[0]
@@ -149,6 +170,9 @@ class Player:
         if self.has_boomerang:
             self.boomerang_manager.update(self.x, self.y, dt)
 
+        if self.has_lightning:
+            self.lightning_manager.update(dt)
+
         self.dart_manager.update(dt)
 
     def shoot(self) -> None:
@@ -180,6 +204,10 @@ class Player:
         # 0. Laser
         if self.has_laser and self.laser:
             self.laser.draw(surface)
+
+        # 0.5 Lightning
+        if self.has_lightning:
+            self.lightning_manager.draw(surface)
 
         # 1. Darts
         self.dart_manager.draw(surface)

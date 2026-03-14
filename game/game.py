@@ -11,7 +11,7 @@ from .constants import (
 from .background import Background
 from .player import Player
 from .effects import Vignette, ScreenShake
-from .enemies import BalloonManager
+from .enemies import BalloonManager, Balloon
 from .orbs import OrbManager
 from .level_manager import LevelManager
 from .end_screen import EndScreen
@@ -91,7 +91,8 @@ class Game:
             dart_speed_level=self.player.dart_manager.dart_speed_level if hasattr(self.player.dart_manager, 'dart_speed_level') else 0,
             laser_level=self.player.laser_level,
             missile_level=self.player.missile_level,
-            boomerang_level=self.player.boomerang_level
+            boomerang_level=self.player.boomerang_level,
+            lightning_level=self.player.lightning_level
         )
         pygame.mouse.set_visible(True)
 
@@ -137,6 +138,8 @@ class Game:
                     self.shop.buy_upgrade('missile')
                 elif result == 'buy_boomerang':
                     self.shop.buy_upgrade('boomerang')
+                elif result == 'buy_lightning':
+                    self.shop.buy_upgrade('lightning')
             
             elif self.game_state == "playing":
                 self._handle_playing_events(event)
@@ -190,6 +193,11 @@ class Game:
                 self.orb_manager.total_orbs -= self.end_screen.boomerang_cost
                 self.player.upgrade_boomerang()
                 self._on_level_complete()
+        elif result == 'buy_lightning':
+            if self.orb_manager.total_orbs >= self.end_screen.lightning_cost:
+                self.orb_manager.total_orbs -= self.end_screen.lightning_cost
+                self.player.upgrade_lightning()
+                self._on_level_complete()
         elif result == 'buy_dart':
             if self.orb_manager.total_orbs >= self.end_screen.dart_speed_cost:
                 self.orb_manager.total_orbs -= self.end_screen.dart_speed_cost
@@ -205,7 +213,8 @@ class Game:
             dart_speed_level=self.player.dart_manager.dart_speed_level if hasattr(self.player.dart_manager, 'dart_speed_level') else 0,
             laser_level=self.player.laser_level,
             missile_level=self.player.missile_level,
-            boomerang_level=self.player.boomerang_level
+            boomerang_level=self.player.boomerang_level,
+            lightning_level=self.player.lightning_level
         )
 
     def _sync_player_upgrades(self) -> None:
@@ -218,6 +227,8 @@ class Game:
             self.player.upgrade_missile()
         while self.player.boomerang_level < self.shop.boomerang_level:
             self.player.upgrade_boomerang()
+        while self.player.lightning_level < self.shop.lightning_level:
+            self.player.upgrade_lightning()
         if hasattr(self.player.dart_manager, 'dart_speed_level'):
             while self.player.dart_manager.dart_speed_level < self.shop.dart_speed_level:
                 self.player.dart_manager.dart_speed_level += 1
@@ -336,7 +347,13 @@ class Game:
                             if will_pop:
                                 self.level_manager.balloon_popped()
                             # Boomerang pierces, so no break here
-        
+
+        # Check lightning strikes
+        if self.player.has_lightning and self.player.lightning_manager.can_strike():
+            target = self._get_closest_balloon(self.player.x, self.player.y)
+            if target:
+                self._trigger_lightning_strike(target)
+
         # Check if level complete (all balloons popped or off-screen)
         remaining = self.balloon_manager.get_remaining_count()
         if remaining <= 0:
@@ -348,7 +365,6 @@ class Game:
     def _check_collision(self, dart, balloon) -> bool:
         """Check if dart collides with balloon."""
         from .projectiles import Dart
-        from .enemies import Balloon
         if isinstance(dart, Dart) and isinstance(balloon, Balloon):
             if balloon.popped:
                 return False
@@ -357,6 +373,51 @@ class Game:
             dist = (dx * dx + dy * dy) ** 0.5
             return dist < balloon.radius + 5
         return False
+
+    def _get_closest_balloon(self, x: float, y: float) -> Balloon:
+        """Find the closest active balloon to a point."""
+        closest = None
+        closest_dist = float('inf')
+        for balloon in self.balloon_manager.balloons:
+            if balloon.popped:
+                continue
+            dx = balloon.x - x
+            dy = balloon.y - y
+            dist = (dx * dx + dy * dy) ** 0.5
+            if dist < closest_dist:
+                closest = balloon
+                closest_dist = dist
+        return closest
+
+    def _trigger_lightning_strike(self, target: Balloon) -> None:
+        """Trigger lightning strike on target and arc to nearby balloons."""
+        manager = self.player.lightning_manager
+        arc_count = manager.get_arc_count()
+
+        # Primary strike
+        manager.trigger_strike((self.player.x, self.player.y - self.player.height // 2), (target.x, target.y))
+        will_pop = target.tier >= 4
+        self.balloon_manager.pop_balloon(target, target.x, target.y)
+        if will_pop:
+            self.level_manager.balloon_popped()
+
+        # Find arc targets sorted by distance to primary target
+        candidates = []
+        for balloon in self.balloon_manager.balloons:
+            if balloon.popped or balloon is target:
+                continue
+            dx = balloon.x - target.x
+            dy = balloon.y - target.y
+            dist = (dx * dx + dy * dy) ** 0.5
+            candidates.append((dist, balloon))
+
+        candidates.sort(key=lambda item: item[0])
+        for _, arc_target in candidates[:arc_count]:
+            manager.trigger_strike((target.x, target.y), (arc_target.x, arc_target.y), apply_cooldown=False)
+            arc_pop = arc_target.tier >= 4
+            self.balloon_manager.pop_balloon(arc_target, arc_target.x, arc_target.y)
+            if arc_pop:
+                self.level_manager.balloon_popped()
 
     def draw(self) -> None:
         """Draw everything based on current state."""
