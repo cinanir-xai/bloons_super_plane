@@ -5,9 +5,10 @@ from game.constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, COLOR_BLACK, COLOR_WHITE,
     COLOR_YELLOW, COLOR_RED, COLOR_GREEN, COLOR_CYAN, COLOR_ORANGE,
     UPGRADE_DART_SPEED_BASE_COST, UPGRADE_DART_SPEED_COST_MULTIPLIER,
-    LASER_BASE_COST, LASER_COST_MULTIPLIER,
-    MISSILE_BASE_COST, MISSILE_UPGRADE_COST,
-    BOOMERANG_COST, BOOMERANG_UPGRADE_COST, COLOR_BROWN
+    LASER_UNLOCK_COST, LASER_BASE_COST, LASER_COST_MULTIPLIER,
+    MISSILE_UNLOCK_COST, MISSILE_BASE_COST, MISSILE_COST_MULTIPLIER,
+    BOOMERANG_UNLOCK_COST, BOOMERANG_BASE_COST, BOOMERANG_COST_MULTIPLIER,
+    COLOR_BROWN
 )
 
 class EndScreen:
@@ -26,17 +27,29 @@ class EndScreen:
         self.boomerang_level = boomerang_level
         self.selected_option = 0  # 0 = next level, 1 = quit
         
-        # Upgrade state
+        # Upgrade state - Dart: unlocked from beginning, upgrades start at 100, increase by 50%
         self.dart_speed_cost = int(UPGRADE_DART_SPEED_BASE_COST * (UPGRADE_DART_SPEED_COST_MULTIPLIER ** dart_speed_level))
         self.can_buy_dart_speed = self.total_orbs >= self.dart_speed_cost
         
-        self.laser_cost = int(LASER_BASE_COST * (LASER_COST_MULTIPLIER ** laser_level))
+        # Laser: 200 to unlock, then 100 * 1.5^(level-1) for upgrades
+        if laser_level == 0:
+            self.laser_cost = LASER_UNLOCK_COST
+        else:
+            self.laser_cost = int(LASER_BASE_COST * (LASER_COST_MULTIPLIER ** (laser_level - 1)))
         self.can_buy_laser = self.total_orbs >= self.laser_cost
         
-        self.missile_cost = MISSILE_BASE_COST if missile_level == 0 else MISSILE_UPGRADE_COST
+        # Missile: 200 to unlock, then 100 * 1.5^(level-1) for upgrades
+        if missile_level == 0:
+            self.missile_cost = MISSILE_UNLOCK_COST
+        else:
+            self.missile_cost = int(MISSILE_BASE_COST * (MISSILE_COST_MULTIPLIER ** (missile_level - 1)))
         self.can_buy_missile = self.total_orbs >= self.missile_cost
         
-        self.boomerang_cost = BOOMERANG_COST if boomerang_level == 0 else BOOMERANG_UPGRADE_COST
+        # Boomerang: 200 to unlock, then 100 * 1.5^(level-1) for upgrades
+        if boomerang_level == 0:
+            self.boomerang_cost = BOOMERANG_UNLOCK_COST
+        else:
+            self.boomerang_cost = int(BOOMERANG_BASE_COST * (BOOMERANG_COST_MULTIPLIER ** (boomerang_level - 1)))
         self.can_buy_boomerang = self.total_orbs >= self.boomerang_cost
         
         # Upgrade layout: 2 columns x 3 rows
@@ -156,8 +169,12 @@ class EndScreen:
             draw_icon(surface, btn_x + self.upgrade_size // 2, btn_y + self.upgrade_size // 2, scale=2.0)
             
             if name != "Locked":
-                # Name and Level
-                name_text = font_tiny.render(f"{name} Lv.{level}", True, COLOR_WHITE)
+                # Name and Level/Status
+                if level == 0:
+                    status_text = "Unlock"
+                else:
+                    status_text = f"Lv.{level}"
+                name_text = font_tiny.render(f"{name} {status_text}", True, COLOR_WHITE)
                 surface.blit(name_text, (btn_x + 5, btn_y + 5))
                 
                 # Cost

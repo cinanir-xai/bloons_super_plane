@@ -53,6 +53,14 @@ class Orb:
 
     def draw(self, surface: pygame.Surface) -> None:
         cx, cy = int(self.x), int(self.y)
+        
+        # Animated glow effect
+        import math
+        glow_size = ORB_SIZE + 4 + int(math.sin(pygame.time.get_ticks() * 0.01) * 2)
+        glow_surface = pygame.Surface((glow_size * 2, glow_size * 2), pygame.SRCALPHA)
+        pygame.draw.circle(glow_surface, (255, 200, 50, 100), (glow_size, glow_size), glow_size)
+        surface.blit(glow_surface, (cx - glow_size, cy - glow_size))
+        
         # Larger yellow circle with gradient effect
         # Outer glow
         pygame.draw.circle(surface, (255, 200, 50), (cx, cy), ORB_SIZE + 2)
@@ -63,6 +71,10 @@ class Orb:
         pygame.draw.circle(surface, (255, 255, 220), (cx - 2, cy - 2), ORB_SIZE // 2)
         # Center shine
         pygame.draw.circle(surface, (255, 255, 255), (cx - 3, cy - 3), ORB_SIZE // 3)
+        
+        # Sparkle effect
+        if pygame.time.get_ticks() % 200 < 50:
+            pygame.draw.circle(surface, (255, 255, 255), (cx + 2, cy - 2), 2)
 
 class OrbManager:
     """Manages all experience orbs and currency."""

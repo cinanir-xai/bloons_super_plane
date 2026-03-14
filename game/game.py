@@ -10,7 +10,7 @@ from .constants import (
 )
 from .background import Background
 from .player import Player
-from .effects import Vignette
+from .effects import Vignette, ScreenShake
 from .enemies import BalloonManager
 from .orbs import OrbManager
 from .level_manager import LevelManager
@@ -48,6 +48,9 @@ class Game:
         
         # End screen
         self.end_screen = None
+        
+        # Visual effects
+        self.screen_shake = ScreenShake()
         
         # State
         self.running = True
@@ -165,6 +168,8 @@ class Game:
             self.unlocked_levels = max(self.unlocked_levels, next_level)
             self.current_level = next_level
             self._load_level(next_level)
+            self.game_state = "playing"
+            pygame.mouse.set_visible(False)
         elif result == 'menu':
             # Go to main menu
             self.game_state = "main_menu"
@@ -224,6 +229,9 @@ class Game:
         if self.paused:
             return
         
+        # Update screen shake
+        self.screen_shake.update(dt)
+        
         if self.game_state == "playing":
             self._update_playing(dt)
         # Menu states (main_menu, level_select, shop, end_screen) don't need update
@@ -247,8 +255,9 @@ class Game:
                     # Check if balloon will be fully popped (red tier = 4)
                     will_pop = balloon.tier >= 4  # Red is tier 4, pink=0
                     
-                    # Pop balloon
+                    # Pop balloon with screen shake
                     self.balloon_manager.pop_balloon(balloon, dart.x, dart.y)
+                    self.screen_shake.trigger(intensity=8, duration=6)
                     self.player.dart_manager.remove_dart(dart)
                     
                     # Track for level completion (only count when fully popped)
@@ -351,6 +360,9 @@ class Game:
 
     def draw(self) -> None:
         """Draw everything based on current state."""
+        # Get shake offset
+        shake_offset = self.screen_shake.apply(self.screen)
+        
         if self.game_state == "main_menu":
             self.main_menu.draw(self.screen)
         elif self.game_state == "level_select":
@@ -360,19 +372,29 @@ class Game:
         elif self.game_state == "shop":
             self.shop.draw(self.screen)
         elif self.game_state == "playing":
-            self._draw_playing()
+            self._draw_playing(shake_offset)
         elif self.game_state == "end_screen":
             self.end_screen.draw(self.screen)
         
         pygame.display.flip()
 
-    def _draw_playing(self) -> None:
-        """Draw gameplay."""
-        self.background.draw(self.screen)
-        self.orb_manager.draw(self.screen)
-        self.balloon_manager.draw(self.screen)
-        self.player.draw(self.screen)
-        self.vignette.draw(self.screen)
+    def _draw_playing(self, shake_offset: tuple = (0, 0)) -> None:
+        """Draw gameplay with optional screen shake."""
+        # Create a temporary surface for shaking
+        if shake_offset != (0, 0):
+            temp_surface = pygame.Surface((self.screen.get_width(), self.screen.get_height()))
+            self.background.draw(temp_surface)
+            self.orb_manager.draw(temp_surface)
+            self.balloon_manager.draw(temp_surface)
+            self.player.draw(temp_surface)
+            self.vignette.draw(temp_surface)
+            self.screen.blit(temp_surface, shake_offset)
+        else:
+            self.background.draw(self.screen)
+            self.orb_manager.draw(self.screen)
+            self.balloon_manager.draw(self.screen)
+            self.player.draw(self.screen)
+            self.vignette.draw(self.screen)
 
     def run(self) -> None:
         """Main game loop."""

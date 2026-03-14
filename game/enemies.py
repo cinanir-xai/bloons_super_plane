@@ -60,26 +60,44 @@ class Balloon:
         return self.y < SCREEN_HEIGHT + self.radius + 20
 
     def draw(self, surface: pygame.Surface) -> None:
-        """Draw the balloon with retro style."""
+        """Draw the balloon with enhanced visual style."""
         if self.popped:
             self._draw_pop_animation(surface)
             return
         
         cx, cy = int(self.x), int(self.y)
-        r = self.radius
+        r = int(self.radius)
         
-        # Draw balloon body (circle)
+        # Draw shadow beneath balloon
+        shadow_surface = pygame.Surface((r * 3, r // 2 + 10), pygame.SRCALPHA)
+        pygame.draw.ellipse(shadow_surface, (0, 0, 0, 40), (r // 2, 5, r * 2, r // 2))
+        surface.blit(shadow_surface, (cx - r, cy + r))
+        
+        # Draw balloon body with gradient effect
+        # Outer glow
         pygame.draw.circle(surface, self.color, (cx, cy), r)
         pygame.draw.circle(surface, COLOR_BLACK, (cx, cy), r, 3)
         
-        # Draw highlight
+        # Inner gradient effect (darker bottom)
+        inner_color = tuple(max(0, c - 40) for c in self.color)
+        pygame.draw.circle(surface, inner_color, (cx, cy + r // 4), r * 2 // 3)
+        
+        # Draw highlight (shiny top-left)
         highlight_r = r // 3
         highlight_pos = (cx - r // 3, cy - r // 3)
         pygame.draw.circle(surface, (255, 255, 255), highlight_pos, highlight_r)
         
-        # Draw string
-        pygame.draw.line(surface, COLOR_BLACK, 
-                        (cx, cy + r), (cx, cy + r + 12), 2)
+        # Secondary highlight for more polish
+        if r > 15:
+            pygame.draw.circle(surface, (255, 255, 255, 180), (cx - r // 4, cy - r // 4), highlight_r // 2)
+        
+        # Draw string with slight curve effect
+        string_start = (cx, cy + r)
+        string_end = (cx + 2, cy + r + 14)
+        pygame.draw.line(surface, COLOR_BLACK, string_start, string_end, 2)
+        
+        # Small tie knot at top of string
+        pygame.draw.circle(surface, COLOR_BLACK, (cx, cy + r + 2), 2)
 
     def _draw_pop_animation(self, surface: pygame.Surface) -> None:
         """Draw popping animation."""
@@ -137,8 +155,11 @@ class BalloonManager:
 
     def pop_balloon(self, balloon: Balloon, x: float, y: float) -> None:
         """Pop a balloon with animation and particles, and spawn orbs."""
-        # Emit particles
-        self.particle_system.emit(x, y, balloon.color, count=12, speed=4.0, size=PARTICLE_SIZE)
+        # Emit particles with enhanced effect
+        self.particle_system.emit(x, y, balloon.color, count=15, speed=5.0, size=PARTICLE_SIZE)
+        
+        # Add white burst particles for impact
+        self.particle_system.emit(x, y, (255, 255, 255), count=8, speed=6.0, size=3)
         
         # Spawn orbs (2 per layer popped)
         self.orb_manager.spawn_orbs(x, y, count=2)

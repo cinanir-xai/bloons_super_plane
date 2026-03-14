@@ -262,3 +262,33 @@ class Vignette:
     def draw(self, surface: pygame.Surface) -> None:
         # Draw a sharp 4px black border
         pygame.draw.rect(surface, COLOR_BLACK, (0, 0, self.width, self.height), 4)
+
+
+class ScreenShake:
+    """Screen shake effect for impact feedback."""
+    def __init__(self):
+        self.duration = 0
+        self.intensity = 0
+        self.offset_x = 0
+        self.offset_y = 0
+    
+    def trigger(self, intensity: float = 10, duration: float = 10) -> None:
+        """Trigger a screen shake."""
+        self.intensity = intensity
+        self.duration = duration
+    
+    def update(self, dt: float) -> None:
+        """Update shake effect."""
+        if self.duration > 0:
+            import random
+            self.offset_x = random.uniform(-self.intensity, self.intensity)
+            self.offset_y = random.uniform(-self.intensity, self.intensity)
+            self.duration -= dt * 60
+            self.intensity *= 0.9
+        else:
+            self.offset_x = 0
+            self.offset_y = 0
+    
+    def apply(self, surface: pygame.Surface) -> pygame.Surface:
+        """Apply shake offset to surface (returns offset tuple)."""
+        return (int(self.offset_x), int(self.offset_y))

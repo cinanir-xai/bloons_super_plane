@@ -95,8 +95,13 @@ class Background:
                 tree.x = self._get_valid_tree_x()
 
     def draw(self, surface: pygame.Surface) -> None:
-        # 1. Base Grass
-        surface.fill(COLOR_BG_GRASS)
+        # 1. Sky gradient (light blue at top, darker at horizon)
+        for y in range(SCREEN_HEIGHT - 200):
+            ratio = y / (SCREEN_HEIGHT - 200)
+            r = int(135 + (80 - 135) * ratio)
+            g = int(206 + (120 - 206) * ratio)
+            b = int(255 + (180 - 255) * ratio)
+            pygame.draw.line(surface, (r, g, b), (0, y), (SCREEN_WIDTH, y))
         
         # 2. Draw River (Straight and clean)
         pygame.draw.rect(surface, COLOR_BG_RIVER, (self.river_x, 0, RIVER_WIDTH, SCREEN_HEIGHT))
@@ -111,3 +116,8 @@ class Background:
         # 4. Draw Clouds
         for cloud in self.clouds:
             cloud.draw(surface)
+        
+        # 5. Draw ground
+        pygame.draw.rect(surface, COLOR_BG_GRASS, (0, SCREEN_HEIGHT - 200, SCREEN_WIDTH, 200))
+        # Ground detail
+        pygame.draw.line(surface, (25, 100, 25), (0, SCREEN_HEIGHT - 200), (SCREEN_WIDTH, SCREEN_HEIGHT - 200), 3)

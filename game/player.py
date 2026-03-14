@@ -191,27 +191,70 @@ class Player:
         self.muzzle_flash_left.draw(surface)
         self.muzzle_flash_right.draw(surface)
         
-        # 4. Plane Body (Sharp geometric shapes)
+        # 4. Plane Body (Detailed with gradients and effects)
         cx, cy = int(self.x), int(self.y)
         hw, hh = self.width // 2, self.height // 2
         
-        # Wings (Large rectangle)
-        pygame.draw.rect(surface, COLOR_RED, (cx - hw, cy - 8, self.width, 16))
-        pygame.draw.rect(surface, COLOR_BLACK, (cx - hw, cy - 8, self.width, 16), 2)
+        # Shadow under plane
+        shadow_surface = pygame.Surface((self.width + 20, self.height + 20), pygame.SRCALPHA)
+        pygame.draw.ellipse(shadow_surface, (0, 0, 0, 60), (10, 10, self.width, self.height))
+        surface.blit(shadow_surface, (cx - hw - 10, cy - hh - 10))
         
-        # Fuselage (Long vertical rectangle)
-        pygame.draw.rect(surface, COLOR_RED, (cx - 8, cy - hh, 16, self.height))
-        pygame.draw.rect(surface, COLOR_BLACK, (cx - 8, cy - hh, 16, self.height), 2)
+        # Wings with gradient effect
+        wing_rect = pygame.Rect(cx - hw, cy - 10, self.width, 20)
+        pygame.draw.rect(surface, COLOR_RED, wing_rect)
+        # Wing highlights
+        pygame.draw.line(surface, (255, 100, 100), (cx - hw + 2, cy - 8), (cx + hw - 2, cy - 8), 3)
+        # Wing shadow
+        pygame.draw.line(surface, COLOR_RED_DARK, (cx - hw + 2, cy + 8), (cx + hw - 2, cy + 8), 2)
+        # Wing border
+        pygame.draw.rect(surface, COLOR_BLACK, wing_rect, 2)
         
-        # Nose (Small rectangle)
-        pygame.draw.rect(surface, COLOR_WHITE, (cx - 4, cy - hh - 4, 8, 8))
+        # Wing tips with accent
+        pygame.draw.rect(surface, (200, 0, 0), (cx - hw, cy - 6, 8, 12))
+        pygame.draw.rect(surface, (200, 0, 0), (cx + hw - 8, cy - 6, 8, 12))
         
-        # Cockpit (Cyan square)
-        pygame.draw.rect(surface, COLOR_CYAN, (cx - 4, cy - 12, 8, 8))
+        # Fuselage (detailed vertical rectangle)
+        fuselage_rect = pygame.Rect(cx - 10, cy - hh, 20, self.height)
+        pygame.draw.rect(surface, COLOR_RED, fuselage_rect)
+        # Fuselage highlight
+        pygame.draw.line(surface, (255, 100, 100), (cx - 8, cy - hh + 2), (cx - 8, cy + hh - 2), 2)
+        # Fuselage border
+        pygame.draw.rect(surface, COLOR_BLACK, fuselage_rect, 2)
         
-        # Tail Fin
-        pygame.draw.rect(surface, COLOR_RED_DARK, (cx - 12, cy + hh - 8, 24, 8))
-        pygame.draw.rect(surface, COLOR_BLACK, (cx - 12, cy + hh - 8, 24, 8), 2)
+        # Nose cone (pointed shape)
+        nose_points = [
+            (cx, cy - hh - 8),
+            (cx - 6, cy - hh),
+            (cx + 6, cy - hh)
+        ]
+        pygame.draw.polygon(surface, COLOR_WHITE, nose_points)
+        pygame.draw.polygon(surface, COLOR_BLACK, nose_points, 2)
+        
+        # Cockpit with glass effect
+        cockpit_rect = pygame.Rect(cx - 6, cy - 14, 12, 12)
+        pygame.draw.rect(surface, (50, 200, 255), cockpit_rect)
+        pygame.draw.rect(surface, COLOR_BLACK, cockpit_rect, 2)
+        # Cockpit shine
+        pygame.draw.line(surface, (200, 255, 255), (cx - 4, cy - 12), (cx + 2, cy - 12), 2)
+        
+        # Engine vents on wings
+        for i in range(3):
+            vent_x = cx - hw + 15 + i * 20
+            pygame.draw.rect(surface, (60, 60, 60), (vent_x, cy - 6, 8, 12))
+            pygame.draw.rect(surface, COLOR_BLACK, (vent_x, cy - 6, 8, 12), 1)
+        
+        # Tail Fin (detailed)
+        tail_rect = pygame.Rect(cx - 14, cy + hh - 10, 28, 12)
+        pygame.draw.rect(surface, COLOR_RED_DARK, tail_rect)
+        # Tail highlight
+        pygame.draw.line(surface, (200, 50, 50), (cx - 12, cy + hh - 8), (cx + 12, cy + hh - 8), 2)
+        # Tail border
+        pygame.draw.rect(surface, COLOR_BLACK, tail_rect, 2)
+        
+        # Exhaust ports
+        pygame.draw.rect(surface, (40, 40, 40), (cx - 6, cy + hh - 6, 12, 4))
+        pygame.draw.rect(surface, COLOR_BLACK, (cx - 6, cy + hh - 6, 12, 4), 1)
 
     def get_rect(self) -> pygame.Rect:
         return pygame.Rect(self.x - self.width // 2, self.y - self.height // 2,

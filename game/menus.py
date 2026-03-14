@@ -278,22 +278,35 @@ class Shop:
         # Recalculate costs
         from game.constants import (
             UPGRADE_DART_SPEED_BASE_COST, UPGRADE_DART_SPEED_COST_MULTIPLIER,
-            LASER_BASE_COST, LASER_COST_MULTIPLIER,
-            MISSILE_BASE_COST, MISSILE_UPGRADE_COST,
-            BOOMERANG_COST, BOOMERANG_UPGRADE_COST
+            LASER_UNLOCK_COST, LASER_BASE_COST, LASER_COST_MULTIPLIER,
+            MISSILE_UNLOCK_COST, MISSILE_BASE_COST, MISSILE_COST_MULTIPLIER,
+            BOOMERANG_UNLOCK_COST, BOOMERANG_BASE_COST, BOOMERANG_COST_MULTIPLIER
         )
         
+        # Dart: unlocked from beginning, upgrades start at 100, increase by 50%
         self.dart_speed_cost = int(UPGRADE_DART_SPEED_BASE_COST * 
                                    (UPGRADE_DART_SPEED_COST_MULTIPLIER ** dart_speed_level))
         self.can_buy_dart_speed = self.total_orbs >= self.dart_speed_cost
         
-        self.laser_cost = int(LASER_BASE_COST * (LASER_COST_MULTIPLIER ** laser_level))
+        # Laser: 200 to unlock, then 100 * 1.5^(level-1) for upgrades
+        if laser_level == 0:
+            self.laser_cost = LASER_UNLOCK_COST
+        else:
+            self.laser_cost = int(LASER_BASE_COST * (LASER_COST_MULTIPLIER ** (laser_level - 1)))
         self.can_buy_laser = self.total_orbs >= self.laser_cost
         
-        self.missile_cost = MISSILE_BASE_COST if missile_level == 0 else MISSILE_UPGRADE_COST
+        # Missile: 200 to unlock, then 100 * 1.5^(level-1) for upgrades
+        if missile_level == 0:
+            self.missile_cost = MISSILE_UNLOCK_COST
+        else:
+            self.missile_cost = int(MISSILE_BASE_COST * (MISSILE_COST_MULTIPLIER ** (missile_level - 1)))
         self.can_buy_missile = self.total_orbs >= self.missile_cost
         
-        self.boomerang_cost = BOOMERANG_COST if boomerang_level == 0 else BOOMERANG_UPGRADE_COST
+        # Boomerang: 200 to unlock, then 100 * 1.5^(level-1) for upgrades
+        if boomerang_level == 0:
+            self.boomerang_cost = BOOMERANG_UNLOCK_COST
+        else:
+            self.boomerang_cost = int(BOOMERANG_BASE_COST * (BOOMERANG_COST_MULTIPLIER ** (boomerang_level - 1)))
         self.can_buy_boomerang = self.total_orbs >= self.boomerang_cost
     
     def handle_event(self, event: pygame.event.Event) -> str:
@@ -331,28 +344,48 @@ class Shop:
     
     def buy_upgrade(self, upgrade_type: str) -> bool:
         """Attempt to buy an upgrade. Returns True if successful."""
+        from game.constants import (
+            UPGRADE_DART_SPEED_BASE_COST, UPGRADE_DART_SPEED_COST_MULTIPLIER,
+            LASER_UNLOCK_COST, LASER_BASE_COST, LASER_COST_MULTIPLIER,
+            MISSILE_UNLOCK_COST, MISSILE_BASE_COST, MISSILE_COST_MULTIPLIER,
+            BOOMERANG_UNLOCK_COST, BOOMERANG_BASE_COST, BOOMERANG_COST_MULTIPLIER
+        )
+        
         if upgrade_type == 'dart' and self.can_buy_dart_speed:
             self.total_orbs -= self.dart_speed_cost
             self.dart_speed_level += 1
-            self.dart_speed_cost = int(100 * (1.5 ** self.dart_speed_level))
+            self.dart_speed_cost = int(UPGRADE_DART_SPEED_BASE_COST * 
+                                        (UPGRADE_DART_SPEED_COST_MULTIPLIER ** self.dart_speed_level))
             self.can_buy_dart_speed = self.total_orbs >= self.dart_speed_cost
             return True
         elif upgrade_type == 'laser' and self.can_buy_laser:
             self.total_orbs -= self.laser_cost
             self.laser_level += 1
-            self.laser_cost = int(100 * (1.5 ** self.laser_level))
+            # After unlock, upgrades cost 100 * 1.5^(level-1)
+            if self.laser_level == 1:
+                self.laser_cost = LASER_BASE_COST  # First upgrade after unlock
+            else:
+                self.laser_cost = int(LASER_BASE_COST * (LASER_COST_MULTIPLIER ** (self.laser_level - 1)))
             self.can_buy_laser = self.total_orbs >= self.laser_cost
             return True
         elif upgrade_type == 'missile' and self.can_buy_missile:
             self.total_orbs -= self.missile_cost
             self.missile_level += 1
-            self.missile_cost = 100  # All upgrades cost 100
+            # After unlock, upgrades cost 100 * 1.5^(level-1)
+            if self.missile_level == 1:
+                self.missile_cost = MISSILE_BASE_COST  # First upgrade after unlock
+            else:
+                self.missile_cost = int(MISSILE_BASE_COST * (MISSILE_COST_MULTIPLIER ** (self.missile_level - 1)))
             self.can_buy_missile = self.total_orbs >= self.missile_cost
             return True
         elif upgrade_type == 'boomerang' and self.can_buy_boomerang:
             self.total_orbs -= self.boomerang_cost
             self.boomerang_level += 1
-            self.boomerang_cost = 200  # All upgrades cost 200
+            # After unlock, upgrades cost 100 * 1.5^(level-1)
+            if self.boomerang_level == 1:
+                self.boomerang_cost = BOOMERANG_BASE_COST  # First upgrade after unlock
+            else:
+                self.boomerang_cost = int(BOOMERANG_BASE_COST * (BOOMERANG_COST_MULTIPLIER ** (self.boomerang_level - 1)))
             self.can_buy_boomerang = self.total_orbs >= self.boomerang_cost
             return True
         return False
@@ -415,8 +448,12 @@ class Shop:
             pygame.draw.rect(surface, color if can_buy else (80, 80, 80),
                            (btn_x, btn_y + i * 100, btn_width, btn_height), 3)
             
-            # Name and level
-            name_text = font_small.render(f"{name} Lv.{level}", True, 
+            # Name and level/status
+            if level == 0:
+                status = "Unlock"
+            else:
+                status = f"Lv.{level}"
+            name_text = font_small.render(f"{name} {status}", True, 
                                          color if can_buy else (100, 100, 100))
             surface.blit(name_text, (btn_x + 10, btn_y + i * 100 + 10))
             
