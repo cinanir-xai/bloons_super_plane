@@ -1,163 +1,171 @@
-"""Level 9 - Zigzag Pattern Waves.
-Balloons spawn in zigzag and wave patterns that flow across the screen,
-with multiple colors and variable speeds.
-"""
+"""Level 9 - Side-entry squadrons, bees, and aggressive sweeps."""
 
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-import math
-import random
 from typing import List
+
+from ..constants import BALLOON_SPEED, SCREEN_WIDTH
 from ..enemies import Balloon, get_balloon_radius
-from ..constants import SCREEN_WIDTH, BALLOON_SPEED
 
 LEVEL_NUMBER = 9
-LEVEL_NAME = "Lightning Strike"
-BALLOON_TIER = 0  # Mixed tiers
+LEVEL_NAME = "Honeycomb Havoc"
+BALLOON_TIER = 0
+
+MAX_RADIUS = get_balloon_radius(0)
+STEP = MAX_RADIUS * 2 + 12
+BEE_BODY_STEP = STEP * 0.95
+
+
+def _add_balloon(
+    balloons: List[Balloon],
+    x: float,
+    y: float,
+    tier: int,
+    pattern: str,
+    pattern_data: dict,
+    speed_multiplier: float = 1.0,
+) -> None:
+    balloons.append(
+        Balloon(
+            x=x,
+            y=y,
+            tier=tier,
+            speed=BALLOON_SPEED,
+            speed_multiplier=speed_multiplier,
+            pattern=pattern,
+            pattern_data=pattern_data,
+        )
+    )
+
+
+def _add_scout_line(
+    balloons: List[Balloon],
+    start_y: float,
+    vx: float,
+    count: int,
+    phase_offset: float,
+) -> None:
+    if vx > 0:
+        start_x = -MAX_RADIUS * 2
+        spacing = -STEP * 1.08
+    else:
+        start_x = SCREEN_WIDTH + MAX_RADIUS * 2
+        spacing = STEP * 1.08
+
+    for index in range(count):
+        _add_balloon(
+            balloons,
+            start_x + index * spacing,
+            start_y - index * STEP * 0.26,
+            index % 5,
+            "drift",
+            {
+                "vx": vx,
+                "vy": 1.9,
+                "sway_amplitude": 0.18,
+                "sway_frequency": 0.05,
+                "phase": phase_offset + index * 0.35,
+            },
+        )
+
+
+def _add_bee(
+    balloons: List[Balloon],
+    center_x: float,
+    center_y: float,
+    wave_phase: float,
+) -> None:
+    motion = {"amplitude": 32, "frequency": 0.05, "phase": wave_phase}
+    for offset_x, offset_y, tier in [
+        (-1.5, 0.0, 4),
+        (-0.5, 0.0, 1),
+        (0.5, 0.0, 4),
+        (1.5, 0.0, 1),
+        (2.5, 0.0, 4),
+    ]:
+        _add_balloon(
+            balloons,
+            center_x + offset_x * BEE_BODY_STEP,
+            center_y + offset_y * BEE_BODY_STEP,
+            tier,
+            "wave",
+            dict(motion),
+            speed_multiplier=1.95,
+        )
+
+    for wing_x, wing_y in [(-0.5, -1.05), (1.5, -1.05)]:
+        _add_balloon(
+            balloons,
+            center_x + wing_x * BEE_BODY_STEP,
+            center_y + wing_y * BEE_BODY_STEP,
+            3,
+            "wave",
+            dict(motion),
+            speed_multiplier=1.95,
+        )
+
+    _add_balloon(
+        balloons,
+        center_x + 3.55 * BEE_BODY_STEP,
+        center_y - 0.15 * BEE_BODY_STEP,
+        0,
+        "wave",
+        dict(motion),
+        speed_multiplier=1.95,
+    )
+
+
+def _add_honeycomb_block(
+    balloons: List[Balloon],
+    start_x: float,
+    start_y: float,
+    vx: float,
+    sway_phase: float,
+) -> None:
+    rows = 4
+    cols = 4
+    for row in range(rows):
+        for col in range(cols):
+            x = start_x + col * STEP * 0.98 + (row % 2) * STEP * 0.49
+            y = start_y - row * STEP * 0.88
+            tier = (row + col) % 5
+            _add_balloon(
+                balloons,
+                x,
+                y,
+                tier,
+                "drift",
+                {
+                    "vx": vx,
+                    "vy": 2.4,
+                    "sway_amplitude": 1.15,
+                    "sway_frequency": 0.035,
+                    "phase": sway_phase + row * 0.6,
+                },
+            )
+
 
 def create_balloons() -> List[Balloon]:
-    """Create balloons in zigzag and wave patterns."""
-    balloons = []
-    
-    colors = [0, 1, 2, 3, 4]  # Pink, Yellow, Green, Blue, Red
-    screen_center = SCREEN_WIDTH / 2
-    
-    # Wave 1: Classic zigzag rows (60 balloons)
-    for wave in range(6):
-        wave_y = -100 - (wave * 120)
-        num_balloons = 10
-        for i in range(num_balloons):
-            # Zigzag pattern
-            offset = 60 if i % 2 == 0 else -60
-            x = screen_center + offset
-            y = wave_y - i * 15
-            tier = colors[(wave + i) % 5]
-            speed_mult = random.choice([0.5, 1.0, 1.5])
-            
-            balloon = Balloon(
-                x=x,
-                y=y,
-                tier=tier,
-                speed=BALLOON_SPEED,
-                speed_multiplier=speed_mult,
-                pattern="zigzag",
-                pattern_data={
-                    'amplitude': 80,
-                    'frequency': 0.04,
-                    'phase': i * 0.5
-                }
-            )
-            balloons.append(balloon)
-    
-    # Wave 2: Multi-line zigzag (50 balloons)
-    for wave in range(5):
-        wave_y = -900 - (wave * 150)
-        num_lines = 5
-        for line in range(num_lines):
-            for i in range(2):
-                x = 200 + line * 160 + (i * 30)
-                y = wave_y - i * 20
-                tier = colors[(wave + line + i) % 5]
-                speed_mult = 0.75 + (line % 3) * 0.5
-                
-                balloon = Balloon(
-                    x=x,
-                    y=y,
-                    tier=tier,
-                    speed=BALLOON_SPEED,
-                    speed_multiplier=speed_mult,
-                    pattern="zigzag",
-                    pattern_data={
-                        'amplitude': 40 + line * 5,
-                        'frequency': 0.03 + line * 0.005,
-                        'phase': i * math.pi
-                    }
-                )
-                balloons.append(balloon)
-    
-    # Wave 3: Wave pattern (sine wave) (40 balloons)
-    for wave in range(4):
-        wave_y = -1700 - (wave * 180)
-        for i in range(10):
-            # Position along a sine wave
-            wave_pos = i / 10
-            x = 100 + wave_pos * (SCREEN_WIDTH - 200)
-            y = wave_y - i * 8 + math.sin(wave_pos * 4 * math.pi) * 40
-            tier = colors[(wave + i) % 5]
-            speed_mult = 0.5 + (i % 4) * 0.5
-            
-            balloon = Balloon(
-                x=x,
-                y=y,
-                tier=tier,
-                speed=BALLOON_SPEED,
-                speed_multiplier=speed_mult,
-                pattern="wave",
-                pattern_data={
-                    'amplitude': 50,
-                    'frequency': 0.025,
-                    'phase': wave_pos * 2 * math.pi
-                }
-            )
-            balloons.append(balloon)
-    
-    # Wave 4: Diagonal zigzag (40 balloons)
-    for wave in range(4):
-        wave_y = -2450 - (wave * 160)
-        for i in range(10):
-            # Diagonal with zigzag
-            x = 100 + i * 50 + (wave * 30)
-            y = wave_y - i * 12
-            tier = colors[(wave * 2 + i) % 5]
-            speed_mult = random.choice([0.5, 1.0, 2.0])
-            
-            balloon = Balloon(
-                x=x,
-                y=y,
-                tier=tier,
-                speed=BALLOON_SPEED,
-                speed_multiplier=speed_mult,
-                pattern="zigzag",
-                pattern_data={
-                    'amplitude': 35,
-                    'frequency': 0.05,
-                    'phase': i * 0.3
-                }
-            )
-            balloons.append(balloon)
-    
-    # Wave 5: Crossing waves (60 balloons)
-    for wave in range(6):
-        wave_y = -3100 - (wave * 130)
-        for i in range(10):
-            # Two crossing waves
-            if i < 5:
-                x = 150 + i * 80
-                y = wave_y - i * 10
-            else:
-                x = SCREEN_WIDTH - 150 - (i - 5) * 80
-                y = wave_y - (i - 5) * 10
-            tier = colors[(wave + i) % 5]
-            speed_mult = random.choice([0.5, 0.75, 1.0, 1.25, 1.5])
-            
-            balloon = Balloon(
-                x=x,
-                y=y,
-                tier=tier,
-                speed=BALLOON_SPEED,
-                speed_multiplier=speed_mult,
-                pattern="wave",
-                pattern_data={
-                    'amplitude': 45,
-                    'frequency': 0.03,
-                    'phase': (i % 5) * 0.4
-                }
-            )
-            balloons.append(balloon)
-    
+    """Create lateral attack lines and bee-themed formations."""
+    balloons: List[Balloon] = []
+
+    _add_scout_line(balloons, start_y=-180, vx=4.6, count=10, phase_offset=0.0)
+    _add_scout_line(balloons, start_y=-420, vx=-4.6, count=10, phase_offset=1.5)
+    _add_scout_line(balloons, start_y=-660, vx=4.9, count=10, phase_offset=2.7)
+
+    _add_bee(balloons, 280, -980, wave_phase=0.0)
+    _add_bee(balloons, SCREEN_WIDTH - 310, -1160, wave_phase=1.2)
+    _add_bee(balloons, SCREEN_WIDTH / 2, -1340, wave_phase=2.3)
+
+    _add_honeycomb_block(balloons, start_x=-220, start_y=-1640, vx=3.2, sway_phase=0.6)
+    _add_honeycomb_block(
+        balloons,
+        start_x=SCREEN_WIDTH - 80,
+        start_y=-1880,
+        vx=-3.2,
+        sway_phase=2.2,
+    )
+
     return balloons
 
+
 def get_total_balloons() -> int:
-    return 250
+    return 83

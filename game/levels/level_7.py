@@ -1,164 +1,163 @@
-"""Level 7 - Circular Pattern Waves.
-Balloons spawn in concentric circles that expand and contract,
-with multiple colors and variable speeds.
-"""
-
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+"""Level 7 - Floral formations with polished circular motion."""
 
 import math
-import random
 from typing import List
+
+from ..constants import BALLOON_SPEED, SCREEN_WIDTH
 from ..enemies import Balloon, get_balloon_radius
-from ..constants import SCREEN_WIDTH, BALLOON_SPEED, COLOR_PINK, COLOR_YELLOW, COLOR_GREEN, COLOR_BLUE, COLOR_RED
 
 LEVEL_NUMBER = 7
-LEVEL_NAME = "Circular Symphony"
-BALLOON_TIER = 0  # Mixed tiers
+LEVEL_NAME = "Bloom Ballet"
+BALLOON_TIER = 0
+
+MAX_RADIUS = get_balloon_radius(0)
+STEP = MAX_RADIUS * 2 + 12
+PETAL_RADIUS = STEP * 1.25
+OUTER_RING_RADIUS = STEP * 2.3
+BUD_RADIUS = STEP * 0.95
+
+
+def _add_balloon(
+    balloons: List[Balloon],
+    x: float,
+    y: float,
+    tier: int,
+    speed_multiplier: float,
+    pattern: str,
+    pattern_data: dict,
+) -> None:
+    balloons.append(
+        Balloon(
+            x=x,
+            y=y,
+            tier=tier,
+            speed=BALLOON_SPEED,
+            speed_multiplier=speed_multiplier,
+            pattern=pattern,
+            pattern_data=pattern_data,
+        )
+    )
+
+
+def _add_large_bloom(
+    balloons: List[Balloon],
+    center_x: float,
+    center_y: float,
+    phase: float,
+    speed_multiplier: float,
+) -> None:
+    motion = {"radius": 0.0, "frequency": 0.05, "phase": phase}
+    _add_balloon(balloons, center_x, center_y, 1, speed_multiplier, "circular", dict(motion))
+
+    for index in range(8):
+        angle = index * (math.tau / 8)
+        x = center_x + math.cos(angle) * PETAL_RADIUS
+        y = center_y + math.sin(angle) * PETAL_RADIUS * 0.86
+        tier = 0 if index % 2 == 0 else 4
+        _add_balloon(balloons, x, y, tier, speed_multiplier, "circular", dict(motion))
+
+    for index in range(16):
+        angle = index * (math.tau / 16) + math.pi / 16
+        x = center_x + math.cos(angle) * OUTER_RING_RADIUS
+        y = center_y + math.sin(angle) * OUTER_RING_RADIUS * 0.86
+        tier = 2 if index % 2 == 0 else 3
+        _add_balloon(balloons, x, y, tier, speed_multiplier, "circular", dict(motion))
+
+    for leaf_x in (-0.9, 0.9):
+        _add_balloon(
+            balloons,
+            center_x + leaf_x * STEP,
+            center_y + STEP * 2.45,
+            2,
+            speed_multiplier,
+            "circular",
+            dict(motion),
+        )
+
+
+def _add_bud(
+    balloons: List[Balloon],
+    center_x: float,
+    center_y: float,
+    phase: float,
+    speed_multiplier: float,
+) -> None:
+    motion = {"amplitude": 34, "frequency": 0.04, "phase": phase}
+    _add_balloon(balloons, center_x, center_y, 1, speed_multiplier, "wave", dict(motion))
+
+    for index in range(6):
+        angle = -math.pi / 2 + index * (math.tau / 6)
+        x = center_x + math.cos(angle) * BUD_RADIUS
+        y = center_y + math.sin(angle) * BUD_RADIUS * 0.88
+        tier = 0 if index in (0, 1, 5) else 4
+        _add_balloon(balloons, x, y, tier, speed_multiplier, "wave", dict(motion))
+
+    for leaf_x in (-0.72, 0.72):
+        _add_balloon(
+            balloons,
+            center_x + leaf_x * STEP,
+            center_y + STEP * 1.6,
+            2,
+            speed_multiplier,
+            "wave",
+            dict(motion),
+        )
+
+
+def _add_vine_arc(
+    balloons: List[Balloon],
+    center_x: float,
+    center_y: float,
+    speed_multiplier: float,
+) -> None:
+    motion = {"amplitude": 28, "frequency": 0.035, "phase": 1.4}
+    offsets = [-4.5, -3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5, 4.5]
+    for index, dx in enumerate(offsets):
+        arch = 1.0 - (dx / 4.8) ** 2
+        x = center_x + dx * STEP
+        y = center_y - arch * STEP * 1.2
+        tier = 2 if index % 2 == 0 else 1
+        _add_balloon(balloons, x, y, tier, speed_multiplier, "wave", dict(motion))
+
 
 def create_balloons() -> List[Balloon]:
-    """Create balloons in circular wave patterns."""
-    balloons = []
-    
-    # Color tiers (all colors for variety)
-    colors = [0, 1, 2, 3, 4]  # Pink, Yellow, Green, Blue, Red
-    
-    # Center of the screen for circles
-    center_x = SCREEN_WIDTH / 2
-    
-    # Wave 1: Circles (40 balloons)
-    for wave in range(4):
-        wave_y = -200 - (wave * 200)
-        for i in range(10):
-            angle = (i / 10) * 2 * math.pi
-            radius = 60 + (wave % 2) * 40
-            x = center_x + radius * math.cos(angle)
-            y = wave_y + radius * math.sin(angle) * 0.3
-            tier = colors[(wave + i) % 5]
-            speed_mult = random.choice([0.5, 1.0, 1.5])
-            
-            balloon = Balloon(
-                x=x,
-                y=y,
-                tier=tier,
-                speed=BALLOON_SPEED,
-                speed_multiplier=speed_mult,
-                pattern="circular",
-                pattern_data={
-                    'radius': 30,
-                    'frequency': 0.025,
-                    'phase': angle
-                }
-            )
-            balloons.append(balloon)
-    
-    # Wave 2: Double circles (40 balloons)
-    for wave in range(4):
-        wave_y = -1000 - (wave * 180)
-        for layer in range(2):
-            for i in range(5):
-                angle = (i / 5) * 2 * math.pi + (layer * math.pi / 5)
-                radius = 70 + layer * 50
-                x = center_x + radius * math.cos(angle)
-                y = wave_y + radius * math.sin(angle) * 0.25
-                tier = colors[(wave + layer + i) % 5]
-                speed_mult = random.choice([0.75, 1.0, 1.25, 2.0])
-                
-                balloon = Balloon(
-                    x=x,
-                    y=y,
-                    tier=tier,
-                    speed=BALLOON_SPEED,
-                    speed_multiplier=speed_mult,
-                    pattern="circular",
-                    pattern_data={
-                        'radius': 35,
-                        'frequency': 0.03,
-                        'phase': angle
-                    }
-                )
-                balloons.append(balloon)
-    
-    # Wave 3: Circle rings (40 balloons)
-    for wave in range(4):
-        wave_y = -1750 - (wave * 160)
-        for i in range(10):
-            angle = (i / 10) * 2 * math.pi
-            radius = 50 + (wave % 3) * 25
-            x = center_x + radius * math.cos(angle)
-            y = wave_y
-            tier = colors[i % 5]
-            speed_mult = 0.5 + (i % 4) * 0.5
-            
-            balloon = Balloon(
-                x=x,
-                y=y,
-                tier=tier,
-                speed=BALLOON_SPEED,
-                speed_multiplier=speed_mult,
-                pattern="circular",
-                pattern_data={
-                    'radius': 25,
-                    'frequency': 0.035,
-                    'phase': angle
-                }
-            )
-            balloons.append(balloon)
-    
-    # Wave 4: Pulsing circles (40 balloons)
-    for wave in range(4):
-        wave_y = -2400 - (wave * 150)
-        for i in range(10):
-            angle = (i / 10) * 2 * math.pi
-            radius = 80 + (i % 2) * 40
-            x = center_x + radius * math.cos(angle)
-            y = wave_y + radius * math.sin(angle) * 0.2
-            tier = colors[(wave * 2 + i) % 5]
-            speed_mult = random.choice([0.5, 1.0, 2.0])
-            
-            balloon = Balloon(
-                x=x,
-                y=y,
-                tier=tier,
-                speed=BALLOON_SPEED,
-                speed_multiplier=speed_mult,
-                pattern="circular",
-                pattern_data={
-                    'radius': 20 + (i % 3) * 10,
-                    'frequency': 0.04,
-                    'phase': angle
-                }
-            )
-            balloons.append(balloon)
-    
-    # Wave 5: Final circles (40 balloons)
-    for wave in range(4):
-        wave_y = -3050 - (wave * 130)
-        for i in range(10):
-            angle = (i / 10) * 2 * math.pi
-            radius = 60
-            x = center_x + radius * math.cos(angle)
-            y = wave_y
-            tier = colors[i % 5]
-            speed_mult = random.choice([0.5, 1.0, 1.5])
-            
-            balloon = Balloon(
-                x=x,
-                y=y,
-                tier=tier,
-                speed=BALLOON_SPEED,
-                speed_multiplier=speed_mult,
-                pattern="circular",
-                pattern_data={
-                    'radius': 30,
-                    'frequency': 0.03,
-                    'phase': angle
-                }
-            )
-            balloons.append(balloon)
-    
+    """Create layered floral set pieces with clean spacing and motion."""
+    balloons: List[Balloon] = []
+
+    first_row_x = [220, SCREEN_WIDTH / 2, SCREEN_WIDTH - 220]
+    for index, x in enumerate(first_row_x):
+        _add_large_bloom(
+            balloons,
+            x,
+            -240,
+            phase=index * 0.8,
+            speed_multiplier=1.9,
+        )
+
+    second_row_x = [340, SCREEN_WIDTH - 340]
+    for index, x in enumerate(second_row_x):
+        _add_large_bloom(
+            balloons,
+            x,
+            -760,
+            phase=1.0 + index * 1.2,
+            speed_multiplier=2.1,
+        )
+
+    _add_vine_arc(balloons, SCREEN_WIDTH / 2, -1120, speed_multiplier=1.8)
+
+    bud_positions = [180, 420, 705, 945]
+    for index, x in enumerate(bud_positions):
+        _add_bud(
+            balloons,
+            x,
+            -1360 - (index % 2) * 80,
+            phase=index * 0.9,
+            speed_multiplier=1.85,
+        )
+
     return balloons
 
+
 def get_total_balloons() -> int:
-    return 200
+    return 181

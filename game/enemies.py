@@ -39,11 +39,12 @@ class Balloon:
     pop_animation: float = 0.0
     # Movement pattern support
     speed_multiplier: float = 1.0
-    pattern: str = "vertical"  # vertical, zigzag, circular, spiral, wave
+    pattern: str = "vertical"  # vertical, zigzag, circular, spiral, wave, drift
     pattern_data: dict = field(default_factory=dict)
     base_x: float = 0.0  # Original x position for patterns
     base_y: float = 0.0  # Original y position for patterns
     time_alive: float = 0.0
+    has_entered_screen: bool = False
 
     def __post_init__(self):
         self.radius = get_balloon_radius(self.tier)
@@ -88,12 +89,15 @@ class Balloon:
             self.y += effective_speed * dt * 60
             amp = self.pattern_data.get('amplitude', 40)
             freq = self.pattern_data.get('frequency', 0.03)
-            self.x = self.base_x + math.sin(self.time_alive * freq) * amp
+            phase = self.pattern_data.get('phase', 0.0)
+            wave = math.asin(math.sin(self.time_alive * freq + phase)) * (2 / math.pi)
+            self.x = self.base_x + wave * amp
         elif self.pattern == "wave":
             self.y += effective_speed * dt * 60
             amp = self.pattern_data.get('amplitude', 50)
             freq = self.pattern_data.get('frequency', 0.02)
-            self.x = self.base_x + math.sin(self.time_alive * freq) * amp
+            phase = self.pattern_data.get('phase', 0.0)
+            self.x = self.base_x + math.sin(self.time_alive * freq + phase) * amp
         elif self.pattern == "circular":
             # Move in a circular pattern while progressing downward
             self.y += effective_speed * dt * 60 * 0.5  # Slower vertical
@@ -109,8 +113,29 @@ class Balloon:
             phase = self.pattern_data.get('phase', 0)
             radius = max(5, initial_radius - self.time_alive * 0.5)
             self.x = self.base_x + math.cos(self.time_alive * freq + phase) * radius
+        elif self.pattern == "drift":
+            vx = self.pattern_data.get('vx', 0.0)
+            vy = self.pattern_data.get('vy', effective_speed)
+            self.x = self.base_x + self.time_alive * vx
+            self.y = self.base_y + self.time_alive * vy
+            sway_amp = self.pattern_data.get('sway_amplitude', 0.0)
+            sway_freq = self.pattern_data.get('sway_frequency', 0.0)
+            if sway_amp and sway_freq:
+                sway_phase = self.pattern_data.get('phase', 0.0)
+                self.x += math.sin(self.time_alive * sway_freq + sway_phase) * sway_amp
         else:
             self.y += effective_speed * dt * 60
+
+        if not self.has_entered_screen:
+            within_x = -self.radius <= self.x <= SCREEN_WIDTH + self.radius
+            within_y = -self.radius <= self.y <= SCREEN_HEIGHT + self.radius
+            if within_x and within_y:
+                self.has_entered_screen = True
+
+        if self.has_entered_screen:
+            horizontal_margin = self.radius + 40
+            if self.x < -horizontal_margin or self.x > SCREEN_WIDTH + horizontal_margin:
+                return False
         
         return self.y < SCREEN_HEIGHT + self.radius + 20
 
@@ -192,17 +217,11 @@ class BalloonManager:
         """Update all balloons. Handle off-screen balloons."""
         new_balloons = []
         for balloon in self.balloons:
-            if balloon.popped:
-                if balloon.update(dt):
-                    new_balloons.append(balloon)
-            else:
-                # Check if balloon went off screen (bottom)
-                if balloon.y > SCREEN_HEIGHT + balloon.radius:
-                    # Count as popped but no orbs
-                    self.off_screen_count += 1
-                    continue
-                if balloon.update(dt):
-                    new_balloons.append(balloon)
+            still_active = balloon.update(dt)
+            if still_active:
+                new_balloons.append(balloon)
+            elif not balloon.popped:
+                self.off_screen_count += 1
         self.balloons = new_balloons
         
         # Update particles
