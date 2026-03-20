@@ -22,20 +22,61 @@ BALLOON_COLORS = [COLOR_PINK, COLOR_YELLOW, COLOR_GREEN, COLOR_BLUE, COLOR_RED]
 
 # Special balloon types (BTD-inspired)
 BALLOON_TYPE_NORMAL = "normal"
-BALLOON_TYPE_BLACK = "black"   # Immune to explosive (missiles)
-BALLOON_TYPE_WHITE = "white"   # Immune to ice (future)
-BALLOON_TYPE_LEAD = "lead"     # Immune to physical (darts, boomerang, wingman)
+BALLOON_TYPE_BLACK = "black"      # Immune to explosive (missiles)
+BALLOON_TYPE_WHITE = "white"      # Immune to ice (future)
+BALLOON_TYPE_LEAD = "lead"        # Immune to physical (darts, boomerang, wingman)
+BALLOON_TYPE_ZEBRA = "zebra"      # Immune to explosive AND ice
+BALLOON_TYPE_RAINBOW = "rainbow"  # No immunities
+BALLOON_TYPE_CERAMIC = "ceramic"  # 10 HP, spawns 2 rainbow
 
 # Special balloon colors (BTD-style)
 COLOR_BLACK_BALLOON = (30, 30, 30)
 COLOR_WHITE_BALLOON = (245, 245, 245)
 COLOR_LEAD_BALLOON = (100, 100, 110)
+COLOR_ZEBRA_BALLOON = (240, 240, 240)  # Base white with black stripes
+COLOR_CERAMIC_BALLOON = (180, 140, 100)  # Tan/brown ceramic
+
+# Rainbow colors for rainbow balloon
+RAINBOW_COLORS = [
+    (255, 80, 80),    # Red
+    (255, 165, 50),   # Orange
+    (255, 230, 50),   # Yellow
+    (80, 220, 80),    # Green
+    (80, 150, 255),   # Blue
+    (180, 100, 255),  # Purple
+]
+
+# Size scaling tiers (each step is 5% larger than previous)
+# From smallest to largest: Red -> Blue -> Green -> Yellow -> Pink -> Black/White -> Lead/Zebra -> Rainbow -> Ceramic
+SIZE_TIER_RED = 0
+SIZE_TIER_BLUE = 1
+SIZE_TIER_GREEN = 2
+SIZE_TIER_YELLOW = 3
+SIZE_TIER_PINK = 4
+SIZE_TIER_BLACK_WHITE = 5
+SIZE_TIER_LEAD_ZEBRA = 6
+SIZE_TIER_RAINBOW = 7
+SIZE_TIER_CERAMIC = 8
 
 def get_balloon_radius(tier: int) -> float:
     """Calculate radius for a tier. Red (4) is base, each tier up +5%."""
     # tiers: 0=pink, 1=yellow, 2=green, 3=blue, 4=red
     steps_above_red = 4 - tier
     return BALLOON_BASE_RADIUS * (1.05 ** steps_above_red)
+
+def get_balloon_radius_by_type(balloon_type: str) -> float:
+    """Get radius for special balloon types based on size tier."""
+    size_multipliers = {
+        BALLOON_TYPE_NORMAL: 0,  # Uses tier-based sizing
+        BALLOON_TYPE_BLACK: SIZE_TIER_BLACK_WHITE,
+        BALLOON_TYPE_WHITE: SIZE_TIER_BLACK_WHITE,
+        BALLOON_TYPE_LEAD: SIZE_TIER_LEAD_ZEBRA,
+        BALLOON_TYPE_ZEBRA: SIZE_TIER_LEAD_ZEBRA,
+        BALLOON_TYPE_RAINBOW: SIZE_TIER_RAINBOW,
+        BALLOON_TYPE_CERAMIC: SIZE_TIER_CERAMIC,
+    }
+    tier = size_multipliers.get(balloon_type, 0)
+    return BALLOON_BASE_RADIUS * (1.05 ** tier)
 
 @dataclass
 class Balloon:
@@ -58,13 +99,22 @@ class Balloon:
     has_entered_screen: bool = False
     # Special balloon type (BTD-inspired)
     balloon_type: str = BALLOON_TYPE_NORMAL
+    # HP for ceramic balloons
+    hp: int = 1
+    max_hp: int = 1
 
     def __post_init__(self):
-        # Special balloons are larger (BTD-style)
-        if self.balloon_type in (BALLOON_TYPE_BLACK, BALLOON_TYPE_WHITE, BALLOON_TYPE_LEAD):
-            self.radius = get_balloon_radius(1)  # Yellow tier size (medium-large)
-        else:
+        # Set radius based on balloon type
+        if self.balloon_type == BALLOON_TYPE_NORMAL:
             self.radius = get_balloon_radius(self.tier)
+        else:
+            self.radius = get_balloon_radius_by_type(self.balloon_type)
+
+        # Set HP for ceramic
+        if self.balloon_type == BALLOON_TYPE_CERAMIC:
+            self.hp = 10
+            self.max_hp = 10
+
         self.color = self._get_display_color()
         self.base_x = self.x
         self.base_y = self.y
@@ -85,16 +135,24 @@ class Balloon:
             return COLOR_WHITE_BALLOON
         elif self.balloon_type == BALLOON_TYPE_LEAD:
             return COLOR_LEAD_BALLOON
+        elif self.balloon_type == BALLOON_TYPE_ZEBRA:
+            return COLOR_ZEBRA_BALLOON
+        elif self.balloon_type == BALLOON_TYPE_RAINBOW:
+            return RAINBOW_COLORS[0]  # Default to red for rainbow
+        elif self.balloon_type == BALLOON_TYPE_CERAMIC:
+            return COLOR_CERAMIC_BALLOON
         elif 0 <= self.tier < len(BALLOON_COLORS):
             return BALLOON_COLORS[self.tier]
         return COLOR_PINK
 
     def is_immune_to(self, damage_type: str) -> bool:
         """Check if this balloon is immune to a specific damage type."""
-        if damage_type == "explosive" and self.balloon_type == BALLOON_TYPE_BLACK:
-            return True
-        if damage_type == "ice" and self.balloon_type == BALLOON_TYPE_WHITE:
-            return True
+        if damage_type == "explosive":
+            if self.balloon_type in (BALLOON_TYPE_BLACK, BALLOON_TYPE_ZEBRA):
+                return True
+        if damage_type == "ice":
+            if self.balloon_type in (BALLOON_TYPE_WHITE, BALLOON_TYPE_ZEBRA):
+                return True
         if damage_type == "physical" and self.balloon_type == BALLOON_TYPE_LEAD:
             return True
         return False
@@ -136,6 +194,15 @@ class Balloon:
 
     def take_damage(self) -> bool:
         """Take damage and downgrade. Returns True if should be removed."""
+        # Ceramic balloons have HP
+        if self.balloon_type == BALLOON_TYPE_CERAMIC:
+            self.hp -= 1
+            if self.hp <= 0:
+                self.popped = True
+                return True
+            return False
+
+        # Normal balloons downgrade by tier
         self.tier += 1
         if self.tier >= len(BALLOON_COLORS):
             self.popped = True
@@ -174,6 +241,51 @@ class Balloon:
                     pattern=self.pattern,
                     pattern_data=dict(self.pattern_data) if self.pattern_data else {},
                     balloon_type=BALLOON_TYPE_BLACK,
+                )
+                balloon_manager.balloons.append(child)
+        elif self.balloon_type == BALLOON_TYPE_ZEBRA:
+            # Spawn 1 white + 1 black balloon
+            for i, btype in enumerate([BALLOON_TYPE_WHITE, BALLOON_TYPE_BLACK]):
+                offset = -25 + i * 50
+                child = Balloon(
+                    x=self.x + offset,
+                    y=self.y,
+                    tier=4,
+                    speed=self.speed,
+                    speed_multiplier=self.speed_multiplier,
+                    pattern=self.pattern,
+                    pattern_data=dict(self.pattern_data) if self.pattern_data else {},
+                    balloon_type=btype,
+                )
+                balloon_manager.balloons.append(child)
+        elif self.balloon_type == BALLOON_TYPE_RAINBOW:
+            # Spawn 2 zebra balloons
+            for i in range(2):
+                offset = -25 + i * 50
+                child = Balloon(
+                    x=self.x + offset,
+                    y=self.y,
+                    tier=4,
+                    speed=self.speed,
+                    speed_multiplier=self.speed_multiplier,
+                    pattern=self.pattern,
+                    pattern_data=dict(self.pattern_data) if self.pattern_data else {},
+                    balloon_type=BALLOON_TYPE_ZEBRA,
+                )
+                balloon_manager.balloons.append(child)
+        elif self.balloon_type == BALLOON_TYPE_CERAMIC:
+            # Spawn 2 rainbow balloons
+            for i in range(2):
+                offset = -25 + i * 50
+                child = Balloon(
+                    x=self.x + offset,
+                    y=self.y,
+                    tier=4,
+                    speed=self.speed,
+                    speed_multiplier=self.speed_multiplier,
+                    pattern=self.pattern,
+                    pattern_data=dict(self.pattern_data) if self.pattern_data else {},
+                    balloon_type=BALLOON_TYPE_RAINBOW,
                 )
                 balloon_manager.balloons.append(child)
 
@@ -267,6 +379,12 @@ class Balloon:
             self._draw_white_balloon(surface, cx, cy, r)
         elif self.balloon_type == BALLOON_TYPE_LEAD:
             self._draw_lead_balloon(surface, cx, cy, r)
+        elif self.balloon_type == BALLOON_TYPE_ZEBRA:
+            self._draw_zebra_balloon(surface, cx, cy, r)
+        elif self.balloon_type == BALLOON_TYPE_RAINBOW:
+            self._draw_rainbow_balloon(surface, cx, cy, r)
+        elif self.balloon_type == BALLOON_TYPE_CERAMIC:
+            self._draw_ceramic_balloon(surface, cx, cy, r)
         else:
             self._draw_normal_balloon(surface, cx, cy, r)
 
@@ -379,52 +497,275 @@ class Balloon:
         pygame.draw.circle(surface, (160, 160, 160), (cx, cy + r + 2), 2)
 
     def _draw_lead_balloon(self, surface, cx, cy, r):
-        """Draw lead balloon with metallic physical-immunity pattern (BTD-style)."""
+        """Draw lead balloon with metallic seams and bolts (BTD-style)."""
         # Metallic gray body
         pygame.draw.circle(surface, COLOR_LEAD_BALLOON, (cx, cy), r)
         pygame.draw.circle(surface, (50, 50, 60), (cx, cy), r, 4)
-        
-        # Metallic gradient bands
+
+        # Metallic seams (horizontal lines across balloon)
+        seam_color = (70, 70, 80)
         for i in range(3):
-            band_y = cy - r//2 + i * (r//2)
-            band_color = (140, 140, 150) if i % 2 == 0 else (80, 80, 90)
-            pygame.draw.arc(surface, band_color, 
-                          (cx - r, cy - r, r*2, r*2), 
-                          math.pi * (0.2 + i * 0.3), math.pi * (0.8 - i * 0.1), 
-                          max(2, r // 4))
-        
+            y_offset = -r // 2 + i * (r // 2) + r // 4
+            # Draw seam line
+            seam_width = int(r * 0.8 * math.sqrt(1 - ((y_offset) / r) ** 2))
+            if seam_width > 4:
+                pygame.draw.line(surface, seam_color,
+                               (cx - seam_width, cy + y_offset),
+                               (cx + seam_width, cy + y_offset), 2)
+                # Seam bolts at ends
+                pygame.draw.circle(surface, (50, 50, 55), (cx - seam_width, cy + y_offset), 3)
+                pygame.draw.circle(surface, (50, 50, 55), (cx + seam_width, cy + y_offset), 3)
+                pygame.draw.circle(surface, (140, 140, 150), (cx - seam_width - 1, cy + y_offset - 1), 2)
+                pygame.draw.circle(surface, (140, 140, 150), (cx + seam_width - 1, cy + y_offset - 1), 2)
+
         # Inner gradient (darker bottom)
         inner_color = (70, 70, 80)
         pygame.draw.circle(surface, inner_color, (cx, cy + r // 4), r * 2 // 3)
-        
-        # Lead/metal indicator: rivets or bolt pattern
-        if r > 20:
-            # Rivets around edge
-            for i in range(8):
-                angle = i * (math.tau / 8)
-                px = cx + int(math.cos(angle) * r * 0.75)
-                py = cy + int(math.sin(angle) * r * 0.75)
-                pygame.draw.circle(surface, (60, 60, 70), (px, py), 3)
-                pygame.draw.circle(surface, (180, 180, 190), (px - 1, py - 1), 1)
-            
-            # Center shield/no-physical symbol
-            pygame.draw.circle(surface, (90, 90, 100), (cx, cy), max(5, r // 3))
-            # Slash through (no physical)
-            pygame.draw.line(surface, (50, 50, 60), (cx - r//4, cy - r//4), (cx + r//4, cy + r//4), 3)
-            pygame.draw.line(surface, (50, 50, 60), (cx + r//4, cy - r//4), (cx - r//4, cy + r//4), 3)
-        
-        # Metallic highlight (more muted)
+
+        # Large bolts around the perimeter
+        if r > 18:
+            num_bolts = 8
+            for i in range(num_bolts):
+                angle = i * (math.tau / num_bolts)
+                px = cx + int(math.cos(angle) * r * 0.78)
+                py = cy + int(math.sin(angle) * r * 0.78)
+                # Bolt head (hexagonal-ish)
+                pygame.draw.circle(surface, (45, 45, 50), (px, py), 4)
+                pygame.draw.circle(surface, (130, 130, 140), (px - 1, py - 1), 2)
+                # Bolt slot
+                pygame.draw.line(surface, (30, 30, 35), (px - 2, py), (px + 2, py), 1)
+
+        # Center reinforced plate
+        plate_r = max(6, r // 3)
+        pygame.draw.circle(surface, (80, 80, 90), (cx, cy), plate_r)
+        pygame.draw.circle(surface, (60, 60, 70), (cx, cy), plate_r, 2)
+        # X pattern on plate (no physical symbol)
+        pygame.draw.line(surface, (50, 50, 60), (cx - plate_r + 2, cy - plate_r + 2), (cx + plate_r - 2, cy + plate_r - 2), 2)
+        pygame.draw.line(surface, (50, 50, 60), (cx + plate_r - 2, cy - plate_r + 2), (cx - plate_r + 2, cy + plate_r - 2), 2)
+
+        # Metallic highlight
         highlight_r = r // 3
         highlight_pos = (cx - r // 3, cy - r // 3)
         pygame.draw.circle(surface, (160, 160, 170), highlight_pos, highlight_r)
         if r > 15:
-            pygame.draw.circle(surface, (200, 200, 210, 180), (cx - r // 4, cy - r // 4), highlight_r // 2)
-        
+            pygame.draw.circle(surface, (200, 200, 210), (cx - r // 4, cy - r // 4), highlight_r // 2)
+
         # Dark gray string
         string_start = (cx, cy + r)
         string_end = (cx + 2, cy + r + 14)
         pygame.draw.line(surface, (70, 70, 80), string_start, string_end, 2)
         pygame.draw.circle(surface, (70, 70, 80), (cx, cy + r + 2), 2)
+
+    def _draw_zebra_balloon(self, surface, cx, cy, r):
+        """Draw zebra balloon with black and white stripes (BTD-style)."""
+        # White base
+        pygame.draw.circle(surface, COLOR_ZEBRA_BALLOON, (cx, cy), r)
+        pygame.draw.circle(surface, (100, 100, 100), (cx, cy), r, 3)
+
+        # Black stripes (diagonal zebra pattern)
+        stripe_color = (25, 25, 25)
+        num_stripes = 6
+        for i in range(num_stripes):
+            # Diagonal stripe from top-left to bottom-right
+            offset = (i - num_stripes // 2) * (r * 0.4)
+            stripe_width = r * 0.25
+
+            # Draw stripe as thick line
+            x1 = cx - r + offset
+            y1 = cy - r
+            x2 = cx + r + offset
+            y2 = cy + r
+
+            # Clip to circle by drawing multiple short segments
+            for j in range(20):
+                t1 = j / 20
+                t2 = (j + 1) / 20
+                sx1 = x1 + (x2 - x1) * t1
+                sy1 = y1 + (y2 - y1) * t1
+                sx2 = x1 + (x2 - x1) * t2
+                sy2 = y1 + (y2 - y1) * t2
+
+                # Check if within circle
+                mid_x = (sx1 + sx2) / 2
+                mid_y = (sy1 + sy2) / 2
+                dist = math.sqrt((mid_x - cx) ** 2 + (mid_y - cy) ** 2)
+                if dist < r - 2:
+                    pygame.draw.line(surface, stripe_color, (int(sx1), int(sy1)), (int(sx2), int(sy2)), max(3, int(stripe_width)))
+
+        # Inner gradient
+        inner_color = (200, 200, 200)
+        pygame.draw.circle(surface, inner_color, (cx, cy + r // 4), r * 2 // 3)
+
+        # Dual immunity symbols (explosion X and ice crystal)
+        if r > 18:
+            # Small explosion-proof X
+            pygame.draw.circle(surface, (180, 180, 180), (cx - r // 4, cy), max(3, r // 6))
+            pygame.draw.line(surface, (80, 80, 80), (cx - r // 4 - r // 8, cy - r // 8), (cx - r // 4 + r // 8, cy + r // 8), 2)
+            pygame.draw.line(surface, (80, 80, 80), (cx - r // 4 + r // 8, cy - r // 8), (cx - r // 4 - r // 8, cy + r // 8), 2)
+
+            # Small snowflake
+            pygame.draw.circle(surface, (200, 220, 255), (cx + r // 4, cy), max(3, r // 6))
+            for i in range(6):
+                angle = i * (math.tau / 6)
+                ex = cx + r // 4 + int(math.cos(angle) * r * 0.12)
+                ey = cy + int(math.sin(angle) * r * 0.12)
+                pygame.draw.line(surface, (150, 180, 220), (cx + r // 4, cy), (ex, ey), 1)
+
+        # Highlight
+        highlight_r = r // 3
+        highlight_pos = (cx - r // 3, cy - r // 3)
+        pygame.draw.circle(surface, (255, 255, 255), highlight_pos, highlight_r)
+
+        # String
+        string_start = (cx, cy + r)
+        string_end = (cx + 2, cy + r + 14)
+        pygame.draw.line(surface, (100, 100, 100), string_start, string_end, 2)
+        pygame.draw.circle(surface, (100, 100, 100), (cx, cy + r + 2), 2)
+
+    def _draw_rainbow_balloon(self, surface, cx, cy, r):
+        """Draw rainbow balloon with gradient colors (BTD-style)."""
+        # Draw colored segments (pie slices)
+        num_colors = len(RAINBOW_COLORS)
+        for i in range(num_colors):
+            start_angle = i * (math.tau / num_colors) - math.pi / 2
+            end_angle = (i + 1) * (math.tau / num_colors) - math.pi / 2
+
+            # Draw pie segment
+            points = [(cx, cy)]
+            for angle in [start_angle + j * (end_angle - start_angle) / 10 for j in range(11)]:
+                px = cx + int(math.cos(angle) * r)
+                py = cy + int(math.sin(angle) * r)
+                points.append((px, py))
+
+            if len(points) >= 3:
+                pygame.draw.polygon(surface, RAINBOW_COLORS[i], points)
+
+        # Black border
+        pygame.draw.circle(surface, (50, 50, 50), (cx, cy), r, 3)
+
+        # Inner gradient overlay (slight white tint)
+        inner_surface = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+        pygame.draw.circle(inner_surface, (255, 255, 255, 50), (r, r), r * 2 // 3)
+        surface.blit(inner_surface, (cx - r, cy - r))
+
+        # Rainbow shimmer highlight
+        highlight_r = r // 3
+        highlight_pos = (cx - r // 3, cy - r // 3)
+        pygame.draw.circle(surface, (255, 255, 255), highlight_pos, highlight_r)
+        if r > 15:
+            pygame.draw.circle(surface, (255, 255, 255), (cx - r // 4, cy - r // 4), highlight_r // 2)
+
+        # String (gradient)
+        string_start = (cx, cy + r)
+        string_end = (cx + 2, cy + r + 14)
+        pygame.draw.line(surface, (150, 100, 100), string_start, string_end, 2)
+        pygame.draw.circle(surface, (150, 100, 100), (cx, cy + r + 2), 2)
+
+    def _draw_ceramic_balloon(self, surface, cx, cy, r):
+        """Draw ceramic balloon with cracks based on HP (BTD-style)."""
+        # Ceramic tan/brown body
+        base_color = COLOR_CERAMIC_BALLOON
+        pygame.draw.circle(surface, base_color, (cx, cy), r)
+        pygame.draw.circle(surface, (120, 90, 60), (cx, cy), r, 4)
+
+        # Ceramic texture (subtle lines)
+        if r > 15:
+            for i in range(4):
+                angle = i * (math.tau / 4) + 0.3
+                x1 = cx + int(math.cos(angle) * r * 0.3)
+                y1 = cy + int(math.sin(angle) * r * 0.3)
+                x2 = cx + int(math.cos(angle) * r * 0.8)
+                y2 = cy + int(math.sin(angle) * r * 0.8)
+                pygame.draw.line(surface, (160, 125, 85), (x1, y1), (x2, y2), 1)
+
+        # Inner gradient
+        inner_color = (150, 115, 75)
+        pygame.draw.circle(surface, inner_color, (cx, cy + r // 4), r * 2 // 3)
+
+        # Draw cracks based on HP lost
+        hp_lost = self.max_hp - self.hp
+
+        # Stage 1: Light cracks (3+ HP lost)
+        if hp_lost >= 3:
+            crack_color = (80, 60, 40)
+            # Small cracks
+            crack_points = [
+                (cx - r // 3, cy - r // 4),
+                (cx - r // 5, cy),
+                (cx - r // 4, cy + r // 4),
+            ]
+            for i in range(len(crack_points) - 1):
+                pygame.draw.line(surface, crack_color, crack_points[i], crack_points[i + 1], 2)
+                # Branch
+                pygame.draw.line(surface, crack_color, crack_points[i + 1],
+                               (crack_points[i + 1][0] + 4, crack_points[i + 1][1] - 4), 1)
+
+        # Stage 2: Medium cracks (6+ HP lost)
+        if hp_lost >= 6:
+            crack_color = (60, 45, 30)
+            # More prominent cracks
+            crack_points2 = [
+                (cx + r // 4, cy - r // 3),
+                (cx + r // 5, cy - r // 8),
+                (cx + r // 3, cy + r // 5),
+                (cx + r // 5, cy + r // 3),
+            ]
+            for i in range(len(crack_points2) - 1):
+                pygame.draw.line(surface, crack_color, crack_points2[i], crack_points2[i + 1], 3)
+                # Branches
+                pygame.draw.line(surface, crack_color, crack_points2[i + 1],
+                               (crack_points2[i + 1][0] - 5, crack_points2[i + 1][1] + 3), 2)
+
+            # Additional crack from top
+            pygame.draw.line(surface, crack_color, (cx, cy - r // 2), (cx - r // 6, cy - r // 6), 2)
+            pygame.draw.line(surface, crack_color, (cx - r // 6, cy - r // 6), (cx - r // 4, cy - r // 4), 2)
+            pygame.draw.line(surface, crack_color, (cx - r // 6, cy - r // 6), (cx - r // 5, cy), 2)
+
+        # Stage 3: Heavy cracks (9+ HP lost)
+        if hp_lost >= 9:
+            crack_color = (40, 30, 20)
+            # Major structural cracks
+            # Central crack
+            pygame.draw.line(surface, crack_color, (cx - r // 2, cy), (cx + r // 2, cy), 4)
+            pygame.draw.line(surface, crack_color, (cx, cy - r // 2), (cx, cy + r // 2), 4)
+
+            # Spider cracks from center
+            for i in range(8):
+                angle = i * (math.tau / 8) + 0.2
+                x1 = cx + int(math.cos(angle) * r * 0.2)
+                y1 = cy + int(math.sin(angle) * r * 0.2)
+                x2 = cx + int(math.cos(angle) * r * 0.7)
+                y2 = cy + int(math.sin(angle) * r * 0.7)
+                pygame.draw.line(surface, crack_color, (x1, y1), (x2, y2), 2)
+
+            # Chunks appearing to fall off (dark spots)
+            for i in range(4):
+                angle = i * (math.tau / 4) + 0.5
+                px = cx + int(math.cos(angle) * r * 0.6)
+                py = cy + int(math.sin(angle) * r * 0.6)
+                pygame.draw.circle(surface, (50, 40, 30), (px, py), 4)
+
+        # Highlight
+        highlight_r = r // 3
+        highlight_pos = (cx - r // 3, cy - r // 3)
+        pygame.draw.circle(surface, (200, 170, 130), highlight_pos, highlight_r)
+        if r > 15:
+            pygame.draw.circle(surface, (220, 190, 150), (cx - r // 4, cy - r // 4), highlight_r // 2)
+
+        # HP indicator (small dots showing remaining health)
+        if self.max_hp > 1:
+            dot_spacing = r * 2 // (self.max_hp + 1)
+            for i in range(self.hp):
+                dot_x = cx - r + dot_spacing * (i + 1)
+                dot_y = cy + r + 8
+                pygame.draw.circle(surface, (100, 80, 60), (dot_x, dot_y), 3)
+                pygame.draw.circle(surface, (180, 150, 110), (dot_x - 1, dot_y - 1), 2)
+
+        # String
+        string_start = (cx, cy + r)
+        string_end = (cx + 2, cy + r + 14)
+        pygame.draw.line(surface, (100, 80, 60), string_start, string_end, 2)
+        pygame.draw.circle(surface, (100, 80, 60), (cx, cy + r + 2), 2)
 
     def _draw_pop_animation(self, surface: pygame.Surface) -> None:
         """Draw popping animation."""
