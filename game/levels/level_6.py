@@ -1,4 +1,4 @@
-"""Level 6 - MOAB Boss Battle."""
+"""Level 6 - MOAB and BFB Boss Battle."""
 
 from typing import List, Tuple
 from ..enemies import (
@@ -12,18 +12,24 @@ from ..enemies import (
     BALLOON_TYPE_RAINBOW,
     BALLOON_TYPE_CERAMIC,
     BALLOON_TYPE_MOAB,
+    BALLOON_TYPE_BFB,
     MOAB_WIDTH,
     MOAB_HEIGHT,
     MOAB_HP,
+    BFB_WIDTH,
+    BFB_HEIGHT,
+    BFB_HP,
 )
 from ..constants import SCREEN_WIDTH, SCREEN_HEIGHT, BALLOON_SPEED
 
 LEVEL_NUMBER = 6
-LEVEL_NAME = "MOAB Arrival"
+LEVEL_NAME = "Boss Battle"
 BALLOON_TIER = 0  # Mixed
 
 # MOAB moves much slower than regular balloons
 MOAB_SPEED = BALLOON_SPEED * 0.25  # 25% of normal speed
+# BFB moves 50% slower than MOAB
+BFB_SPEED = MOAB_SPEED * 0.5  # 12.5% of normal speed
 
 
 def create_balloons() -> List[Balloon]:
@@ -47,11 +53,22 @@ def get_delayed_spawns() -> List[Tuple[float, List[Balloon]]]:
     """Return balloons that spawn after delays.
     
     Returns list of (delay_seconds, balloons) tuples.
-    The layered balloon cubes spawn 30 seconds after the MOAB.
+    - BFB spawns 30 seconds after MOAB
+    - The layered balloon cubes spawn 60 seconds after BFB (90 seconds total)
     """
     delayed: List[Tuple[float, List[Balloon]]] = []
     
-    # Create the layered balloon cubes that spawn 30 seconds later
+    # BFB spawns 30 seconds after MOAB
+    bfb = Balloon(
+        x=SCREEN_WIDTH / 2,
+        y=-BFB_HEIGHT / 2 - 20,
+        tier=4,
+        speed=BFB_SPEED,
+        balloon_type=BALLOON_TYPE_BFB,
+    )
+    delayed.append((30.0, [bfb]))
+    
+    # Create the layered balloon cubes that spawn 90 seconds after MOAB (60s after BFB)
     balloons: List[Balloon] = []
     
     # Grid settings
@@ -120,14 +137,15 @@ def get_delayed_spawns() -> List[Tuple[float, List[Balloon]]]:
 
         current_y -= rows_per_type * spacing_y + 100
     
-    # 30 second delay before the balloon cubes spawn
-    delayed.append((30.0, balloons))
+    # 90 second delay before the balloon cubes spawn (60s after BFB)
+    delayed.append((90.0, balloons))
     
     return delayed
 
 
 def get_total_balloons() -> int:
     # MOAB: 1
+    # BFB: 1
     # Ceramic: 8*15 = 120
     # Rainbow: 8*15 = 120
     # Zebra: 8*15 = 120
@@ -135,5 +153,5 @@ def get_total_balloons() -> int:
     # White: 10*15 = 150
     # Black: 10*15 = 150
     # Pink/Yellow/Green/Blue/Red: 5*15*15 = 1125
-    # Total: 1906
-    return 1906
+    # Total: 1907
+    return 1907

@@ -29,6 +29,7 @@ BALLOON_TYPE_ZEBRA = "zebra"      # Immune to explosive AND ice
 BALLOON_TYPE_RAINBOW = "rainbow"  # No immunities
 BALLOON_TYPE_CERAMIC = "ceramic"  # 10 HP, spawns 2 rainbow
 BALLOON_TYPE_MOAB = "moab"        # Boss: 200 HP, spawns 4 ceramic
+BALLOON_TYPE_BFB = "bfb"          # Boss: 700 HP, spawns 4 MOAB
 
 # Special balloon colors (BTD-style)
 COLOR_BLACK_BALLOON = (30, 30, 30)
@@ -43,6 +44,14 @@ COLOR_MOAB_DARK = (80, 130, 180)       # Darker blue for shading
 COLOR_MOAB_HIGHLIGHT = (180, 220, 250) # Bright highlight
 COLOR_MOAB_FIN = (70, 120, 170)        # Fin/rudder color
 COLOR_MOAB_DAMAGED = (150, 100, 80)    # Burn/damage marks
+
+# BFB colors (red blimp with white accents)
+COLOR_BFB_BODY = (200, 60, 60)         # Red body
+COLOR_BFB_DARK = (140, 40, 40)         # Dark red shading
+COLOR_BFB_HIGHLIGHT = (240, 100, 100)  # Bright red highlight
+COLOR_BFB_ACCENT = (255, 255, 255)     # White accents
+COLOR_BFB_FIN = (120, 35, 35)          # Dark red fins
+COLOR_BFB_DAMAGED = (100, 50, 30)      # Burn/damage marks
 
 # Rainbow colors for rainbow balloon
 RAINBOW_COLORS = [
@@ -71,6 +80,12 @@ MOAB_WIDTH = 180   # Width of the zeppelin body
 MOAB_HEIGHT = 100  # Height of the zeppelin body
 MOAB_HP = 200      # Total HP
 MOAB_DAMAGE_STAGES = 4  # Visual damage at 50 HP intervals
+
+# BFB dimensions (50% larger than MOAB)
+BFB_WIDTH = int(MOAB_WIDTH * 1.5)    # 270
+BFB_HEIGHT = int(MOAB_HEIGHT * 1.5)  # 150
+BFB_HP = 700       # Total HP
+BFB_DAMAGE_STAGES = 4  # Visual damage at 175 HP intervals
 
 def get_balloon_radius(tier: int) -> float:
     """Calculate radius for a tier. Red (4) is base, each tier up +5%."""
@@ -129,6 +144,13 @@ class Balloon:
             self.radius = max(self.width, self.height) / 2  # For collision detection
             self.hp = MOAB_HP
             self.max_hp = MOAB_HP
+        elif self.balloon_type == BALLOON_TYPE_BFB:
+            # BFB is 50% larger than MOAB
+            self.width = BFB_WIDTH
+            self.height = BFB_HEIGHT
+            self.radius = max(self.width, self.height) / 2
+            self.hp = BFB_HP
+            self.max_hp = BFB_HP
         elif self.balloon_type == BALLOON_TYPE_NORMAL:
             self.radius = get_balloon_radius(self.tier)
         else:
@@ -167,6 +189,8 @@ class Balloon:
             return COLOR_CERAMIC_BALLOON
         elif self.balloon_type == BALLOON_TYPE_MOAB:
             return COLOR_MOAB_BODY
+        elif self.balloon_type == BALLOON_TYPE_BFB:
+            return COLOR_BFB_BODY
         elif 0 <= self.tier < len(BALLOON_COLORS):
             return BALLOON_COLORS[self.tier]
         return COLOR_PINK
@@ -220,6 +244,14 @@ class Balloon:
 
     def take_damage(self) -> bool:
         """Take damage and downgrade. Returns True if should be removed."""
+        # BFB balloons have 700 HP
+        if self.balloon_type == BALLOON_TYPE_BFB:
+            self.hp -= 1
+            if self.hp <= 0:
+                self.popped = True
+                return True
+            return False
+
         # MOAB balloons have 200 HP
         if self.balloon_type == BALLOON_TYPE_MOAB:
             self.hp -= 1
@@ -346,6 +378,25 @@ class Balloon:
                     balloon_type=BALLOON_TYPE_CERAMIC,
                 )
                 balloon_manager.balloons.append(child)
+        elif self.balloon_type == BALLOON_TYPE_BFB:
+            # Spawn 4 MOABs in a spread pattern
+            positions = [
+                (-80, -50), (-80, 50), (80, -50), (80, 50)
+            ]
+            for i, (ox, oy) in enumerate(positions):
+                offset_x = ox + random.uniform(-30, 30)
+                offset_y = oy + random.uniform(-30, 30)
+                child = Balloon(
+                    x=self.x + offset_x,
+                    y=self.y + offset_y,
+                    tier=4,
+                    speed=self.speed,
+                    speed_multiplier=self.speed_multiplier,
+                    pattern=self.pattern,
+                    pattern_data=dict(self.pattern_data) if self.pattern_data else {},
+                    balloon_type=BALLOON_TYPE_MOAB,
+                )
+                balloon_manager.balloons.append(child)
 
     def update(self, dt: float) -> bool:
         """Update balloon position. Returns False if off screen."""
@@ -427,6 +478,11 @@ class Balloon:
         # MOAB is drawn differently (rectangular zeppelin)
         if self.balloon_type == BALLOON_TYPE_MOAB:
             self._draw_moab(surface, cx, cy)
+            return
+        
+        # BFB is drawn similarly to MOAB but red
+        if self.balloon_type == BALLOON_TYPE_BFB:
+            self._draw_bfb(surface, cx, cy)
             return
         
         r = int(self.radius)
@@ -832,10 +888,10 @@ class Balloon:
         pygame.draw.circle(surface, (100, 80, 60), (cx, cy + r + 2), 2)
 
     def _draw_moab(self, surface: pygame.Surface, cx: int, cy: int) -> None:
-        """Draw the MOAB zeppelin with damage stages (BTD-style)."""
-        # MOAB dimensions
-        w = int(self.width)
-        h = int(self.height)
+        """Draw the MOAB zeppelin facing downward (BTD-style)."""
+        # MOAB dimensions - vertical orientation (taller than wide)
+        w = int(self.height)  # Swap: height becomes width for vertical
+        h = int(self.width)   # Swap: width becomes height for vertical
         half_w = w // 2
         half_h = h // 2
         
@@ -849,234 +905,486 @@ class Balloon:
         elif self.hp <= 150:
             damage_stage = 1
         
-        # Draw large shadow beneath MOAB
-        shadow_surface = pygame.Surface((w + 40, h // 2 + 20), pygame.SRCALPHA)
-        pygame.draw.ellipse(shadow_surface, (0, 0, 0, 50), (20, 10, w, h // 2))
-        surface.blit(shadow_surface, (cx - half_w - 20, cy + half_h - 5))
+        # Draw large shadow beneath MOAB (below the nose)
+        shadow_surface = pygame.Surface((w + 40, h // 3 + 20), pygame.SRCALPHA)
+        pygame.draw.ellipse(shadow_surface, (0, 0, 0, 40), (20, 10, w, h // 3))
+        surface.blit(shadow_surface, (cx - half_w - 20, cy + half_h - 10))
         
-        # === MAIN BODY (bulbous zeppelin shape) ===
-        # Draw the main zeppelin body using overlapping ellipses for bulbous effect
-        
-        # Bottom dark shading
-        body_dark = (COLOR_MOAB_DARK[0] - 20, COLOR_MOAB_DARK[1] - 20, COLOR_MOAB_DARK[2] - 20)
+        # === MAIN BODY (vertical zeppelin shape) ===
+        # Dark shading layer
+        body_dark = (COLOR_MOAB_DARK[0] - 15, COLOR_MOAB_DARK[1] - 15, COLOR_MOAB_DARK[2] - 15)
         pygame.draw.ellipse(surface, body_dark, 
-                           (cx - half_w, cy - half_h + 10, w, h - 5))
+                           (cx - half_w + 5, cy - half_h, w - 10, h))
         
         # Main body
         pygame.draw.ellipse(surface, COLOR_MOAB_BODY, 
                            (cx - half_w, cy - half_h, w, h))
         
-        # Top highlight (lighter blue strip)
-        highlight_rect = pygame.Rect(cx - half_w + 15, cy - half_h + 8, w - 30, h // 3)
+        # Top highlight (lighter blue strip on left side for 3D effect)
+        highlight_rect = pygame.Rect(cx - half_w + 8, cy - half_h + 15, w // 3, h - 30)
         pygame.draw.ellipse(surface, COLOR_MOAB_HIGHLIGHT, highlight_rect)
         
-        # === BODY DETAILS ===
-        # Horizontal panel lines (like a real zeppelin)
-        panel_color = (COLOR_MOAB_DARK[0] + 10, COLOR_MOAB_DARK[1] + 10, COLOR_MOAB_DARK[2] + 10)
-        for i in range(5):
-            y_off = cy - half_h + 20 + i * (h - 40) // 4
-            # Calculate width at this y position (ellipse)
-            t = (y_off - (cy - half_h + 20)) / (h - 40)
-            panel_width = int((w - 30) * math.sqrt(max(0, 1 - (2 * t - 1) ** 2)) / 2)
-            if panel_width > 10:
+        # === BODY PANEL LINES (horizontal lines for vertical zeppelin) ===
+        panel_color = (COLOR_MOAB_DARK[0] + 15, COLOR_MOAB_DARK[1] + 15, COLOR_MOAB_DARK[2] + 15)
+        for i in range(7):
+            y_pos = cy - half_h + 25 + i * (h - 50) // 6
+            # Calculate width at this y position (ellipse formula)
+            t = (y_pos - (cy - half_h)) / h
+            y_norm = (t - 0.5) * 2  # -1 to 1
+            line_half_width = int((half_w - 10) * math.sqrt(max(0, 1 - y_norm ** 2)))
+            if line_half_width > 5:
                 pygame.draw.line(surface, panel_color,
-                               (cx - panel_width, y_off),
-                               (cx + panel_width, y_off), 1)
+                               (cx - line_half_width, y_pos),
+                               (cx + line_half_width, y_pos), 1)
         
-        # Vertical ribs for bulbous effect
-        rib_color = (COLOR_MOAB_DARK[0] + 5, COLOR_MOAB_DARK[1] + 5, COLOR_MOAB_DARK[2] + 5)
-        for i in range(-3, 4):
-            if i == 0:
-                continue
-            x_base = cx + i * (w // 8)
-            # Draw curved rib line
-            points = []
-            for j in range(20):
-                t = j / 19
-                y_pos = cy - half_h + 10 + t * (h - 20)
-                # Calculate x offset based on ellipse shape
-                y_norm = (t - 0.5) * 2  # -1 to 1
-                x_offset = int((half_h - 10) * math.sqrt(max(0, 1 - y_norm ** 2)) * 0.3)
-                points.append((x_base, y_pos))
-            if len(points) > 1:
-                pygame.draw.lines(surface, rib_color, False, points, 1)
+        # === WHITE ACCENT STRIPES ===
+        # Central white stripe going down the body
+        stripe_color = (240, 250, 255)
+        stripe_width = 3
+        # Main vertical stripe
+        pygame.draw.line(surface, stripe_color, 
+                        (cx, cy - half_h + 30), (cx, cy + half_h - 40), stripe_width)
         
-        # === FRONT SECTION (rounded nose) ===
-        # Nose cone (front of zeppelin)
+        # Side accent stripes
+        for x_off in [-25, 25]:
+            # Calculate stripe that follows body curve
+            stripe_points = []
+            for i in range(25):
+                t = i / 24
+                y_pos = cy - half_h + 30 + t * (h - 70)
+                # Get width at this y position
+                t_norm = (y_pos - (cy - half_h)) / h
+                y_norm = (t_norm - 0.5) * 2
+                max_x = (half_w - 10) * math.sqrt(max(0, 1 - y_norm ** 2))
+                x_pos = cx + x_off * (max_x / (half_w - 10)) if half_w > 10 else cx
+                stripe_points.append((int(x_pos), int(y_pos)))
+            if len(stripe_points) > 1:
+                pygame.draw.lines(surface, stripe_color, False, stripe_points, 2)
+        
+        # === NOSE CONE (bottom, pointing toward player) ===
+        # Rounded nose at the bottom
         nose_points = []
         for i in range(20):
-            angle = math.pi / 2 + (i / 19) * math.pi  # Top to bottom
-            x = cx - half_w + 5 + int(math.cos(angle) * 15)
-            y = cy + int(math.sin(angle) * (half_h - 5))
+            angle = -math.pi / 2 + (i / 19) * math.pi  # Left to right at bottom
+            x = cx + int(math.cos(angle) * (half_w - 5))
+            y = cy + half_h - 5 + int(math.sin(angle) * 20)
             nose_points.append((x, y))
-        # Add front point
-        nose_points.insert(0, (cx - half_w - 10, cy))
+        # Add bottom point
+        nose_points.append((cx, cy + half_h + 25))
         if len(nose_points) >= 3:
             pygame.draw.polygon(surface, COLOR_MOAB_BODY, nose_points)
             pygame.draw.polygon(surface, COLOR_MOAB_DARK, nose_points, 2)
         
-        # === REAR FINS (triple tail fins like BTD MOAB) ===
-        # Top fin
+        # === TAIL FINS (at top - the back of the blimp) ===
+        # Left tail fin
+        fin_left = [
+            (cx - half_w + 10, cy - half_h + 20),
+            (cx - half_w - 25, cy - half_h - 30),
+            (cx - half_w - 35, cy - half_h - 25),
+            (cx - half_w - 30, cy - half_h + 5),
+            (cx - half_w + 5, cy - half_h + 25),
+        ]
+        pygame.draw.polygon(surface, COLOR_MOAB_FIN, fin_left)
+        pygame.draw.polygon(surface, COLOR_MOAB_DARK, fin_left, 2)
+        
+        # Right tail fin
+        fin_right = [
+            (cx + half_w - 10, cy - half_h + 20),
+            (cx + half_w + 25, cy - half_h - 30),
+            (cx + half_w + 35, cy - half_h - 25),
+            (cx + half_w + 30, cy - half_h + 5),
+            (cx + half_w - 5, cy - half_h + 25),
+        ]
+        pygame.draw.polygon(surface, COLOR_MOAB_FIN, fin_right)
+        pygame.draw.polygon(surface, COLOR_MOAB_DARK, fin_right, 2)
+        
+        # Center top fin
         fin_top = [
-            (cx + half_w - 25, cy - half_h + 15),
-            (cx + half_w + 15, cy - half_h - 25),
-            (cx + half_w + 30, cy - half_h - 20),
-            (cx + half_w + 20, cy - half_h + 5),
-            (cx + half_w - 15, cy - half_h + 20),
+            (cx - 15, cy - half_h + 10),
+            (cx, cy - half_h - 35),
+            (cx + 15, cy - half_h + 10),
         ]
         pygame.draw.polygon(surface, COLOR_MOAB_FIN, fin_top)
         pygame.draw.polygon(surface, COLOR_MOAB_DARK, fin_top, 2)
         
-        # Bottom fin
-        fin_bottom = [
-            (cx + half_w - 25, cy + half_h - 15),
-            (cx + half_w + 15, cy + half_h + 25),
-            (cx + half_w + 30, cy + half_h + 20),
-            (cx + half_w + 20, cy + half_h - 5),
-            (cx + half_w - 15, cy + half_h - 20),
+        # === PROPULSION ENGINES (on back/top sides) ===
+        # Left engine (top-left)
+        engine_l = [
+            (cx - half_w + 5, cy - half_h + 35),
+            (cx - half_w - 20, cy - half_h + 25),
+            (cx - half_w - 20, cy - half_h + 50),
+            (cx - half_w + 5, cy - half_h + 45),
         ]
-        pygame.draw.polygon(surface, COLOR_MOAB_FIN, fin_bottom)
-        pygame.draw.polygon(surface, COLOR_MOAB_DARK, fin_bottom, 2)
-        
-        # Center rear fin
-        fin_center = [
-            (cx + half_w - 20, cy),
-            (cx + half_w + 25, cy - 15),
-            (cx + half_w + 40, cy),
-            (cx + half_w + 25, cy + 15),
-        ]
-        pygame.draw.polygon(surface, COLOR_MOAB_FIN, fin_center)
-        pygame.draw.polygon(surface, COLOR_MOAB_DARK, fin_center, 2)
-        
-        # === COCKPIT/GONDOLA (underneath) ===
-        gondola_points = [
-            (cx - 30, cy + half_h - 5),
-            (cx - 40, cy + half_h + 20),
-            (cx + 40, cy + half_h + 20),
-            (cx + 30, cy + half_h - 5),
-        ]
-        pygame.draw.polygon(surface, COLOR_MOAB_DARK, gondola_points)
-        pygame.draw.polygon(surface, (50, 80, 110), gondola_points, 2)
-        
-        # Gondola windows
-        for i in range(3):
-            wx = cx - 20 + i * 20
-            pygame.draw.rect(surface, (60, 100, 140), (wx, cy + half_h + 5, 12, 8))
-            pygame.draw.rect(surface, (100, 150, 200), (wx + 1, cy + half_h + 6, 10, 6), 1)
-        
-        # === PROPULSION ENGINES (on sides) ===
-        # Left engine
-        engine_l = [(cx - half_w + 10, cy + 10),
-                    (cx - half_w - 15, cy + 5),
-                    (cx - half_w - 15, cy + 20),
-                    (cx - half_w + 10, cy + 15)]
         pygame.draw.polygon(surface, COLOR_MOAB_DARK, engine_l)
         pygame.draw.polygon(surface, (50, 80, 110), engine_l, 2)
-        # Engine glow
-        pygame.draw.circle(surface, (200, 220, 255), (cx - half_w - 12, cy + 12), 4)
+        # Engine glow (thruster flame)
+        pygame.draw.circle(surface, (200, 220, 255), (cx - half_w - 15, cy - half_h + 37), 5)
+        pygame.draw.circle(surface, (255, 255, 255), (cx - half_w - 15, cy - half_h + 37), 3)
         
-        # Right engine
-        engine_r = [(cx + half_w - 10, cy + 10),
-                    (cx + half_w + 15, cy + 5),
-                    (cx + half_w + 15, cy + 20),
-                    (cx + half_w - 10, cy + 15)]
+        # Right engine (top-right)
+        engine_r = [
+            (cx + half_w - 5, cy - half_h + 35),
+            (cx + half_w + 20, cy - half_h + 25),
+            (cx + half_w + 20, cy - half_h + 50),
+            (cx + half_w - 5, cy - half_h + 45),
+        ]
         pygame.draw.polygon(surface, COLOR_MOAB_DARK, engine_r)
         pygame.draw.polygon(surface, (50, 80, 110), engine_r, 2)
         # Engine glow
-        pygame.draw.circle(surface, (200, 220, 255), (cx + half_w + 12, cy + 12), 4)
-        
-        # === WHITE DETAIL STRIPES ===
-        # Central white stripe along body
-        stripe_points = []
-        for i in range(30):
-            t = i / 29
-            x = cx - half_w + 20 + t * (w - 40)
-            y_norm = (t - 0.5) * 2
-            y_off = cy + int(y_norm * 3 * (1 - abs(y_norm)))
-            stripe_points.append((x, y_off))
-        if len(stripe_points) > 1:
-            pygame.draw.lines(surface, (240, 250, 255), False, stripe_points, 3)
+        pygame.draw.circle(surface, (200, 220, 255), (cx + half_w + 15, cy - half_h + 37), 5)
+        pygame.draw.circle(surface, (255, 255, 255), (cx + half_w + 15, cy - half_h + 37), 3)
         
         # === DAMAGE VISUALIZATION ===
         if damage_stage >= 1:
-            # Stage 1: Small scorch marks and dents
-            burn_positions = [(cx - 40, cy - 15), (cx + 30, cy + 10), (cx - 10, cy + 20)]
+            # Stage 1: Small scorch marks
+            burn_positions = [(cx - 20, cy - 20), (cx + 15, cy + 10), (cx - 10, cy + 30)]
             for bx, by in burn_positions:
-                pygame.draw.circle(surface, COLOR_MOAB_DAMAGED, (bx, by), 8)
-                pygame.draw.circle(surface, (100, 70, 50), (bx, by), 5)
+                pygame.draw.circle(surface, COLOR_MOAB_DAMAGED, (bx, by), 6)
+                pygame.draw.circle(surface, (100, 70, 50), (bx, by), 4)
         
         if damage_stage >= 2:
-            # Stage 2: Larger burns, cracks, exposed metal
-            burn_positions2 = [(cx - 50, cy), (cx + 50, cy - 10), (cx, cy - 25)]
+            # Stage 2: Larger burns and cracks
+            burn_positions2 = [(cx - 25, cy), (cx + 25, cy - 15), (cx, cy + 20)]
             for bx, by in burn_positions2:
-                pygame.draw.circle(surface, (80, 50, 30), (bx, by), 12)
-                pygame.draw.circle(surface, COLOR_MOAB_DAMAGED, (bx, by), 9)
+                pygame.draw.circle(surface, (80, 50, 30), (bx, by), 10)
+                pygame.draw.circle(surface, COLOR_MOAB_DAMAGED, (bx, by), 7)
             
             # Crack lines
             crack_color = (60, 40, 25)
-            pygame.draw.line(surface, crack_color, (cx - 30, cy - 20), (cx - 45, cy + 5), 2)
-            pygame.draw.line(surface, crack_color, (cx - 45, cy + 5), (cx - 35, cy + 15), 2)
-            pygame.draw.line(surface, crack_color, (cx + 40, cy - 5), (cx + 55, cy + 10), 2)
+            pygame.draw.line(surface, crack_color, (cx - 15, cy - 25), (cx - 25, cy + 5), 2)
+            pygame.draw.line(surface, crack_color, (cx + 20, cy - 10), (cx + 30, cy + 15), 2)
         
         if damage_stage >= 3:
-            # Stage 3: Heavy damage, holes, smoke marks
-            # Large burn holes
-            for bx, by in [(cx - 30, cy), (cx + 40, cy - 5), (cx, cy + 15)]:
-                pygame.draw.circle(surface, (40, 30, 20), (bx, by), 18)
-                pygame.draw.circle(surface, (60, 45, 30), (bx, by), 14)
-                pygame.draw.circle(surface, (30, 25, 15), (bx, by), 8)
+            # Stage 3: Heavy damage - large holes and major cracks
+            for bx, by in [(cx - 15, cy - 5), (cx + 20, cy + 5), (cx, cy + 25)]:
+                pygame.draw.circle(surface, (40, 30, 20), (bx, by), 15)
+                pygame.draw.circle(surface, (60, 45, 30), (bx, by), 11)
+                pygame.draw.circle(surface, (30, 25, 15), (bx, by), 6)
             
-            # Heavy cracks across body
+            # Major cracks
             crack_color = (50, 35, 20)
-            pygame.draw.line(surface, crack_color, (cx - 60, cy - 10), (cx + 60, cy + 5), 3)
-            pygame.draw.line(surface, crack_color, (cx, cy - 35), (cx - 20, cy + 30), 3)
-            pygame.draw.line(surface, crack_color, (cx + 20, cy - 30), (cx + 50, cy + 20), 2)
+            pygame.draw.line(surface, crack_color, (cx - 30, cy - 20), (cx + 30, cy + 10), 2)
+            pygame.draw.line(surface, crack_color, (cx, cy - 40), (cx - 15, cy + 35), 2)
             
-            # Smoke wisps (static)
-            for i in range(5):
-                sx = cx + random.randint(-50, 50)
-                sy = cy + random.randint(-30, 30)
-                pygame.draw.circle(surface, (80, 80, 80), (sx, sy), random.randint(3, 8))
+            # Smoke wisps
+            for i in range(4):
+                sx = cx + random.randint(-30, 30)
+                sy = cy + random.randint(-25, 25)
+                pygame.draw.circle(surface, (90, 90, 90), (sx, sy), random.randint(3, 6))
         
         # === MOAB TEXT ===
-        # Draw "MOAB" text on the body
-        font_size = 20
+        font_size = 18
         try:
             font = pygame.font.Font(None, font_size)
             text = font.render("MOAB", True, (255, 255, 255))
-            text_rect = text.get_rect(center=(cx, cy - 5))
+            text_rect = text.get_rect(center=(cx, cy))
             # Text shadow
             shadow_text = font.render("MOAB", True, (50, 80, 120))
-            shadow_rect = shadow_text.get_rect(center=(cx + 1, cy - 4))
+            shadow_rect = shadow_text.get_rect(center=(cx + 1, cy + 1))
             surface.blit(shadow_text, shadow_rect)
             surface.blit(text, text_rect)
         except:
             pass
         
         # === HP BAR ===
-        # Draw HP bar below the MOAB
-        bar_width = w - 40
-        bar_height = 8
+        bar_width = w - 20
+        bar_height = 6
         bar_x = cx - bar_width // 2
-        bar_y = cy + half_h + 35
+        bar_y = cy + half_h + 40
         
         # Background
-        pygame.draw.rect(surface, (40, 40, 50), (bar_x - 2, bar_y - 2, bar_width + 4, bar_height + 4))
-        pygame.draw.rect(surface, (60, 60, 70), (bar_x, bar_y, bar_width, bar_height))
+        pygame.draw.rect(surface, (30, 30, 40), (bar_x - 2, bar_y - 2, bar_width + 4, bar_height + 4))
+        pygame.draw.rect(surface, (50, 50, 60), (bar_x, bar_y, bar_width, bar_height))
         
-        # HP fill (color changes with damage)
+        # HP fill
         if hp_percent > 0.5:
-            hp_color = (80, 200, 80)  # Green
+            hp_color = (80, 200, 80)
         elif hp_percent > 0.25:
-            hp_color = (220, 180, 50)  # Yellow
+            hp_color = (220, 180, 50)
         else:
-            hp_color = (220, 80, 80)  # Red
+            hp_color = (220, 80, 80)
         
         hp_width = int(bar_width * hp_percent)
         if hp_width > 0:
             pygame.draw.rect(surface, hp_color, (bar_x, bar_y, hp_width, bar_height))
         
-        # HP bar border
+        # Border
+        pygame.draw.rect(surface, (100, 100, 110), (bar_x - 2, bar_y - 2, bar_width + 4, bar_height + 4), 2)
+        
+        # HP text
+        try:
+            hp_font = pygame.font.Font(None, 14)
+            hp_text = hp_font.render(f"{self.hp}/{self.max_hp}", True, (255, 255, 255))
+            hp_text_rect = hp_text.get_rect(center=(cx, bar_y + bar_height + 8))
+            surface.blit(hp_text, hp_text_rect)
+        except:
+            pass
+
+    def _draw_bfb(self, surface: pygame.Surface, cx: int, cy: int) -> None:
+        """Draw the BFB blimp facing downward with angry eyes (BTD-style)."""
+        # BFB dimensions - vertical orientation (taller than wide)
+        w = int(self.height)  # Swap: height becomes width for vertical
+        h = int(self.width)   # Swap: width becomes height for vertical
+        half_w = w // 2
+        half_h = h // 2
+        
+        # Calculate damage stage (0-3, where 3 is most damaged)
+        hp_percent = self.hp / self.max_hp
+        damage_stage = 0
+        if self.hp <= 175:
+            damage_stage = 3
+        elif self.hp <= 350:
+            damage_stage = 2
+        elif self.hp <= 525:
+            damage_stage = 1
+        
+        # Draw large shadow beneath BFB (below the nose)
+        shadow_surface = pygame.Surface((w + 60, h // 3 + 30), pygame.SRCALPHA)
+        pygame.draw.ellipse(shadow_surface, (0, 0, 0, 40), (30, 15, w, h // 3))
+        surface.blit(shadow_surface, (cx - half_w - 30, cy + half_h - 15))
+        
+        # === MAIN BODY (vertical blimp shape) ===
+        # Dark shading layer
+        body_dark = (COLOR_BFB_DARK[0] - 10, COLOR_BFB_DARK[1] - 10, COLOR_BFB_DARK[2] - 10)
+        pygame.draw.ellipse(surface, body_dark, 
+                           (cx - half_w + 8, cy - half_h, w - 16, h))
+        
+        # Main body
+        pygame.draw.ellipse(surface, COLOR_BFB_BODY, 
+                           (cx - half_w, cy - half_h, w, h))
+        
+        # Top highlight (brighter red strip on left side for 3D effect)
+        highlight_rect = pygame.Rect(cx - half_w + 12, cy - half_h + 25, w // 3, h - 50)
+        pygame.draw.ellipse(surface, COLOR_BFB_HIGHLIGHT, highlight_rect)
+        
+        # === BODY PANEL LINES (horizontal lines for vertical blimp) ===
+        panel_color = (COLOR_BFB_DARK[0] + 20, COLOR_BFB_DARK[1] + 20, COLOR_BFB_DARK[2] + 20)
+        for i in range(9):
+            y_pos = cy - half_h + 35 + i * (h - 70) // 8
+            # Calculate width at this y position (ellipse formula)
+            t = (y_pos - (cy - half_h)) / h
+            y_norm = (t - 0.5) * 2  # -1 to 1
+            line_half_width = int((half_w - 15) * math.sqrt(max(0, 1 - y_norm ** 2)))
+            if line_half_width > 8:
+                pygame.draw.line(surface, panel_color,
+                               (cx - line_half_width, y_pos),
+                               (cx + line_half_width, y_pos), 1)
+        
+        # === WHITE ACCENT STRIPES ===
+        stripe_color = COLOR_BFB_ACCENT
+        # Main vertical stripe
+        pygame.draw.line(surface, stripe_color, 
+                        (cx, cy - half_h + 45), (cx, cy + half_h - 60), 4)
+        
+        # Side accent stripes that follow body curve
+        for x_off in [-35, 35]:
+            stripe_points = []
+            for i in range(30):
+                t = i / 29
+                y_pos = cy - half_h + 45 + t * (h - 105)
+                # Get width at this y position
+                t_norm = (y_pos - (cy - half_h)) / h
+                y_norm = (t_norm - 0.5) * 2
+                max_x = (half_w - 15) * math.sqrt(max(0, 1 - y_norm ** 2))
+                x_pos = cx + x_off * (max_x / (half_w - 15)) if half_w > 15 else cx
+                stripe_points.append((int(x_pos), int(y_pos)))
+            if len(stripe_points) > 1:
+                pygame.draw.lines(surface, stripe_color, False, stripe_points, 3)
+        
+        # === NOSE CONE (bottom, pointing toward player) ===
+        # Rounded nose at the bottom
+        nose_points = []
+        for i in range(25):
+            angle = -math.pi / 2 + (i / 24) * math.pi  # Left to right at bottom
+            x = cx + int(math.cos(angle) * (half_w - 8))
+            y = cy + half_h - 8 + int(math.sin(angle) * 30)
+            nose_points.append((x, y))
+        # Add bottom point
+        nose_points.append((cx, cy + half_h + 40))
+        if len(nose_points) >= 3:
+            pygame.draw.polygon(surface, COLOR_BFB_BODY, nose_points)
+            pygame.draw.polygon(surface, COLOR_BFB_DARK, nose_points, 2)
+        
+        # === ANGRY EYES (on the nose/front) ===
+        # Two large white angry eyes
+        eye_y = cy + half_h - 15
+        eye_spacing = 35
+        eye_width = 28
+        eye_height = 22
+        
+        # Left eye
+        left_eye_x = cx - eye_spacing
+        # Eye white (angry shape - slanted)
+        eye_left_points = [
+            (left_eye_x - eye_width, eye_y - 5),           # Top left
+            (left_eye_x + eye_width, eye_y - eye_height),  # Top right (slanted up)
+            (left_eye_x + eye_width, eye_y + eye_height),  # Bottom right
+            (left_eye_x - eye_width, eye_y + 5),           # Bottom left
+        ]
+        pygame.draw.polygon(surface, (255, 255, 255), eye_left_points)
+        pygame.draw.polygon(surface, (200, 200, 200), eye_left_points, 2)
+        # Pupil (angry - looking down at player)
+        pygame.draw.circle(surface, (20, 20, 20), (left_eye_x + 5, eye_y + 3), 8)
+        pygame.draw.circle(surface, (255, 255, 255), (left_eye_x + 3, eye_y + 1), 3)
+        
+        # Right eye
+        right_eye_x = cx + eye_spacing
+        eye_right_points = [
+            (right_eye_x - eye_width, eye_y - eye_height),  # Top left (slanted up)
+            (right_eye_x + eye_width, eye_y - 5),           # Top right
+            (right_eye_x + eye_width, eye_y + 5),           # Bottom right
+            (right_eye_x - eye_width, eye_y + eye_height),  # Bottom left
+        ]
+        pygame.draw.polygon(surface, (255, 255, 255), eye_right_points)
+        pygame.draw.polygon(surface, (200, 200, 200), eye_right_points, 2)
+        # Pupil
+        pygame.draw.circle(surface, (20, 20, 20), (right_eye_x - 5, eye_y + 3), 8)
+        pygame.draw.circle(surface, (255, 255, 255), (right_eye_x - 7, eye_y + 1), 3)
+        
+        # Angry eyebrow lines
+        pygame.draw.line(surface, COLOR_BFB_DARK, 
+                        (left_eye_x - eye_width - 5, eye_y - 10),
+                        (left_eye_x + eye_width, eye_y - eye_height - 5), 3)
+        pygame.draw.line(surface, COLOR_BFB_DARK, 
+                        (right_eye_x + eye_width + 5, eye_y - 10),
+                        (right_eye_x - eye_width, eye_y - eye_height - 5), 3)
+        
+        # === TAIL FINS (at top - the back of the blimp) ===
+        # Left tail fin
+        fin_left = [
+            (cx - half_w + 15, cy - half_h + 30),
+            (cx - half_w - 35, cy - half_h - 45),
+            (cx - half_w - 50, cy - half_h - 40),
+            (cx - half_w - 45, cy - half_h + 10),
+            (cx - half_w + 10, cy - half_h + 40),
+        ]
+        pygame.draw.polygon(surface, COLOR_BFB_FIN, fin_left)
+        pygame.draw.polygon(surface, COLOR_BFB_DARK, fin_left, 2)
+        
+        # Right tail fin
+        fin_right = [
+            (cx + half_w - 15, cy - half_h + 30),
+            (cx + half_w + 35, cy - half_h - 45),
+            (cx + half_w + 50, cy - half_h - 40),
+            (cx + half_w + 45, cy - half_h + 10),
+            (cx + half_w - 10, cy - half_h + 40),
+        ]
+        pygame.draw.polygon(surface, COLOR_BFB_FIN, fin_right)
+        pygame.draw.polygon(surface, COLOR_BFB_DARK, fin_right, 2)
+        
+        # Center top fin
+        fin_top = [
+            (cx - 20, cy - half_h + 15),
+            (cx, cy - half_h - 55),
+            (cx + 20, cy - half_h + 15),
+        ]
+        pygame.draw.polygon(surface, COLOR_BFB_FIN, fin_top)
+        pygame.draw.polygon(surface, COLOR_BFB_DARK, fin_top, 2)
+        
+        # === PROPULSION ENGINES (on back/top sides - two motors) ===
+        # Left engine (top-left)
+        engine_l = [
+            (cx - half_w + 8, cy - half_h + 55),
+            (cx - half_w - 30, cy - half_h + 40),
+            (cx - half_w - 30, cy - half_h + 75),
+            (cx - half_w + 8, cy - half_h + 65),
+        ]
+        pygame.draw.polygon(surface, COLOR_BFB_DARK, engine_l)
+        pygame.draw.polygon(surface, (80, 25, 25), engine_l, 2)
+        # Engine glow (thruster flame)
+        pygame.draw.circle(surface, (255, 200, 150), (cx - half_w - 22, cy - half_h + 57), 8)
+        pygame.draw.circle(surface, (255, 255, 200), (cx - half_w - 22, cy - half_h + 57), 5)
+        pygame.draw.circle(surface, (255, 255, 255), (cx - half_w - 22, cy - half_h + 57), 3)
+        
+        # Right engine (top-right)
+        engine_r = [
+            (cx + half_w - 8, cy - half_h + 55),
+            (cx + half_w + 30, cy - half_h + 40),
+            (cx + half_w + 30, cy - half_h + 75),
+            (cx + half_w - 8, cy - half_h + 65),
+        ]
+        pygame.draw.polygon(surface, COLOR_BFB_DARK, engine_r)
+        pygame.draw.polygon(surface, (80, 25, 25), engine_r, 2)
+        # Engine glow
+        pygame.draw.circle(surface, (255, 200, 150), (cx + half_w + 22, cy - half_h + 57), 8)
+        pygame.draw.circle(surface, (255, 255, 200), (cx + half_w + 22, cy - half_h + 57), 5)
+        pygame.draw.circle(surface, (255, 255, 255), (cx + half_w + 22, cy - half_h + 57), 3)
+        
+        # === DAMAGE VISUALIZATION ===
+        if damage_stage >= 1:
+            # Stage 1: Small scorch marks
+            burn_positions = [(cx - 30, cy - 30), (cx + 25, cy + 15), (cx - 15, cy + 45)]
+            for bx, by in burn_positions:
+                pygame.draw.circle(surface, COLOR_BFB_DAMAGED, (bx, by), 8)
+                pygame.draw.circle(surface, (80, 40, 20), (bx, by), 5)
+        
+        if damage_stage >= 2:
+            # Stage 2: Larger burns and cracks
+            burn_positions2 = [(cx - 40, cy), (cx + 40, cy - 25), (cx, cy + 35)]
+            for bx, by in burn_positions2:
+                pygame.draw.circle(surface, (70, 35, 15), (bx, by), 14)
+                pygame.draw.circle(surface, COLOR_BFB_DAMAGED, (bx, by), 10)
+            
+            # Crack lines
+            crack_color = (60, 30, 15)
+            pygame.draw.line(surface, crack_color, (cx - 25, cy - 35), (cx - 40, cy + 10), 2)
+            pygame.draw.line(surface, crack_color, (cx + 30, cy - 15), (cx + 45, cy + 25), 2)
+        
+        if damage_stage >= 3:
+            # Stage 3: Heavy damage - large holes and major cracks
+            for bx, by in [(cx - 25, cy - 10), (cx + 30, cy + 10), (cx, cy + 40)]:
+                pygame.draw.circle(surface, (40, 20, 10), (bx, by), 20)
+                pygame.draw.circle(surface, (60, 30, 15), (bx, by), 15)
+                pygame.draw.circle(surface, (30, 15, 8), (bx, by), 8)
+            
+            # Major cracks
+            crack_color = (50, 25, 12)
+            pygame.draw.line(surface, crack_color, (cx - 45, cy - 30), (cx + 45, cy + 15), 3)
+            pygame.draw.line(surface, crack_color, (cx, cy - 60), (cx - 25, cy + 50), 3)
+            
+            # Smoke wisps
+            for i in range(6):
+                sx = cx + random.randint(-45, 45)
+                sy = cy + random.randint(-40, 40)
+                pygame.draw.circle(surface, (100, 100, 100), (sx, sy), random.randint(4, 8))
+        
+        # === BFB TEXT ===
+        font_size = 24
+        try:
+            font = pygame.font.Font(None, font_size)
+            text = font.render("BFB", True, (255, 255, 255))
+            text_rect = text.get_rect(center=(cx, cy - 15))
+            # Text shadow
+            shadow_text = font.render("BFB", True, (80, 20, 20))
+            shadow_rect = shadow_text.get_rect(center=(cx + 1, cy - 14))
+            surface.blit(shadow_text, shadow_rect)
+            surface.blit(text, text_rect)
+        except:
+            pass
+        
+        # === HP BAR ===
+        bar_width = w - 30
+        bar_height = 8
+        bar_x = cx - bar_width // 2
+        bar_y = cy + half_h + 60
+        
+        # Background
+        pygame.draw.rect(surface, (30, 30, 40), (bar_x - 2, bar_y - 2, bar_width + 4, bar_height + 4))
+        pygame.draw.rect(surface, (50, 50, 60), (bar_x, bar_y, bar_width, bar_height))
+        
+        # HP fill
+        if hp_percent > 0.5:
+            hp_color = (80, 200, 80)
+        elif hp_percent > 0.25:
+            hp_color = (220, 180, 50)
+        else:
+            hp_color = (220, 80, 80)
+        
+        hp_width = int(bar_width * hp_percent)
+        if hp_width > 0:
+            pygame.draw.rect(surface, hp_color, (bar_x, bar_y, hp_width, bar_height))
+        
+        # Border
         pygame.draw.rect(surface, (100, 100, 110), (bar_x - 2, bar_y - 2, bar_width + 4, bar_height + 4), 2)
         
         # HP text
@@ -1107,8 +1415,8 @@ class Balloon:
 
     def get_rect(self) -> pygame.Rect:
         """Get collision rect."""
-        if self.balloon_type == BALLOON_TYPE_MOAB:
-            # MOAB uses rectangular hitbox
+        if self.balloon_type == BALLOON_TYPE_MOAB or self.balloon_type == BALLOON_TYPE_BFB:
+            # MOAB and BFB use rectangular hitbox
             return pygame.Rect(self.x - self.width / 2, self.y - self.height / 2,
                               self.width, self.height)
         return pygame.Rect(self.x - self.radius, self.y - self.radius,

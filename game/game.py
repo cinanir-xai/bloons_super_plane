@@ -286,7 +286,7 @@ class Game:
         # Check dart collisions with balloons
         darts = self.player.dart_manager.get_darts()
         if darts:
-            from .enemies import BALLOON_TYPE_MOAB
+            from .enemies import BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB
             balloon_candidates = [b for b in self.balloon_manager.balloons if not b.popped]
             self._collision_checked.clear()
             for dart in darts[:]:
@@ -296,8 +296,8 @@ class Game:
                         continue
                     self._collision_checked.add(pair_key)
                     if self._check_collision(dart, balloon):
-                        # Check if balloon will be fully popped (red tier = 4 or MOAB)
-                        will_pop = balloon.tier >= 4 or balloon.balloon_type == BALLOON_TYPE_MOAB
+                        # Check if balloon will be fully popped (red tier = 4 or MOAB/BFB)
+                        will_pop = balloon.tier >= 4 or balloon.balloon_type in (BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB)
                         
                         # Pop balloon with subtle screen shake (10% of original)
                         self.balloon_manager.pop_balloon(balloon, dart.x, dart.y, damage_type="physical")
@@ -313,14 +313,14 @@ class Game:
         # Check laser collisions
         if self.player.has_laser and self.player.laser and self.player.laser.active:
             from .constants import LASER_POP_DELAY
-            from .enemies import BALLOON_TYPE_MOAB
+            from .enemies import BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB
             laser = self.player.laser
             active_balloons = [b for b in self.balloon_manager.balloons if not b.popped]
             for balloon in active_balloons:
                 # Check collision with laser beam
                 laser_hits = False
-                if balloon.balloon_type == BALLOON_TYPE_MOAB:
-                    # MOAB rectangular collision
+                if balloon.balloon_type in (BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB):
+                    # MOAB/BFB rectangular collision
                     rect = balloon.get_rect()
                     laser_hits = rect.left <= laser.x <= rect.right and balloon.y < laser.y_start
                 else:
@@ -334,7 +334,7 @@ class Game:
                     laser.emit_hit_particles(self.screen, balloon.y)
                     
                     if laser.pop_timers[b_id] >= LASER_POP_DELAY:
-                        will_pop = balloon.tier >= 4 or balloon.balloon_type == BALLOON_TYPE_MOAB
+                        will_pop = balloon.tier >= 4 or balloon.balloon_type in (BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB)
                         self.balloon_manager.pop_balloon(balloon, balloon.x, balloon.y, damage_type="magic")
                         if will_pop:
                             self.level_manager.balloon_popped()
@@ -342,14 +342,14 @@ class Game:
         
         # Check missile collisions
         if self.player.has_missile:
-            from .enemies import BALLOON_TYPE_MOAB
+            from .enemies import BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB
             missile_manager = self.player.missile_manager
             active_balloons = [b for b in self.balloon_manager.balloons if not b.popped]
             for missile in missile_manager.missiles[:]:
                 for balloon in active_balloons:
                     # Check collision with missile
                     missile_hits = False
-                    if balloon.balloon_type == BALLOON_TYPE_MOAB:
+                    if balloon.balloon_type in (BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB):
                         rect = balloon.get_rect()
                         missile_hits = rect.collidepoint(missile.x, missile.y)
                     else:
@@ -367,14 +367,14 @@ class Game:
                             bdx = missile.x - b.x
                             bdy = missile.y - b.y
                             bdist = (bdx * bdx + bdy * bdy) ** 0.5
-                            # For MOAB, check if explosion center is within aoe_radius + half of MOAB size
-                            if b.balloon_type == BALLOON_TYPE_MOAB:
+                            # For MOAB/BFB, check if explosion center is within aoe_radius + half of size
+                            if b.balloon_type in (BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB):
                                 in_aoe = bdist < missile.aoe_radius + max(b.width, b.height) / 2
                             else:
                                 in_aoe = bdist < missile.aoe_radius
                             
                             if in_aoe:
-                                will_pop = b.tier >= 4 or b.balloon_type == BALLOON_TYPE_MOAB
+                                will_pop = b.tier >= 4 or b.balloon_type in (BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB)
                                 self.balloon_manager.pop_balloon(b, b.x, b.y, damage_type="explosive")
                                 if will_pop:
                                     self.level_manager.balloon_popped()
@@ -385,14 +385,14 @@ class Game:
         
         # Check boomerang collisions
         if self.player.has_boomerang:
-            from .enemies import BALLOON_TYPE_MOAB
+            from .enemies import BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB
             bm = self.player.boomerang_manager
             active_balloons = [b for b in self.balloon_manager.balloons if not b.popped]
             for boomerang in bm.boomerangs:
                 for balloon in active_balloons:
                     # Check collision with boomerang
                     boomerang_hits = False
-                    if balloon.balloon_type == BALLOON_TYPE_MOAB:
+                    if balloon.balloon_type in (BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB):
                         rect = balloon.get_rect()
                         boomerang_hits = rect.collidepoint(boomerang.x, boomerang.y)
                     else:
@@ -403,7 +403,7 @@ class Game:
                     
                     if boomerang_hits:
                         # Damage balloon (physical)
-                        will_pop = balloon.tier >= 4 or balloon.balloon_type == BALLOON_TYPE_MOAB
+                        will_pop = balloon.tier >= 4 or balloon.balloon_type in (BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB)
                         self.balloon_manager.pop_balloon(balloon, balloon.x, balloon.y, damage_type="physical")
                         if will_pop:
                             self.level_manager.balloon_popped()
@@ -482,13 +482,13 @@ class Game:
     def _check_collision(self, dart, balloon) -> bool:
         """Check if dart collides with balloon."""
         from .projectiles import Dart
-        from .enemies import BALLOON_TYPE_MOAB
+        from .enemies import BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB
         if isinstance(dart, Dart) and isinstance(balloon, Balloon):
             if balloon.popped:
                 return False
             
-            # MOAB uses rectangular collision
-            if balloon.balloon_type == BALLOON_TYPE_MOAB:
+            # MOAB/BFB use rectangular collision
+            if balloon.balloon_type in (BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB):
                 rect = balloon.get_rect()
                 return rect.collidepoint(dart.x, dart.y)
             
@@ -516,13 +516,13 @@ class Game:
 
     def _trigger_lightning_strike(self, target: Balloon) -> None:
         """Trigger lightning strike on target and arc to nearby balloons."""
-        from .enemies import BALLOON_TYPE_MOAB
+        from .enemies import BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB
         manager = self.player.lightning_manager
         arc_count = manager.get_arc_count()
 
         # Primary strike (magic damage)
         manager.trigger_strike((self.player.x, self.player.y - self.player.height // 2), (target.x, target.y))
-        will_pop = target.tier >= 4 or target.balloon_type == BALLOON_TYPE_MOAB
+        will_pop = target.tier >= 4 or target.balloon_type in (BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB)
         self.balloon_manager.pop_balloon(target, target.x, target.y, damage_type="magic")
         if will_pop:
             self.level_manager.balloon_popped()
@@ -540,7 +540,7 @@ class Game:
         candidates.sort(key=lambda item: item[0])
         for _, arc_target in candidates[:arc_count]:
             manager.trigger_strike((target.x, target.y), (arc_target.x, arc_target.y), apply_cooldown=False)
-            arc_pop = arc_target.tier >= 4 or arc_target.balloon_type == BALLOON_TYPE_MOAB
+            arc_pop = arc_target.tier >= 4 or arc_target.balloon_type in (BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB)
             self.balloon_manager.pop_balloon(arc_target, arc_target.x, arc_target.y, damage_type="magic")
             if arc_pop:
                 self.level_manager.balloon_popped()
