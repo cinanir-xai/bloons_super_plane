@@ -15,7 +15,7 @@ from .constants import (
     LIGHTNING_BASE_COOLDOWN, LIGHTNING_COOLDOWN_REDUCTION
 )
 from .effects import EngineGlow, MuzzleFlash
-from .projectiles import DartManager, Laser, MissileManager, BoomerangManager, LightningManager, WingmanManager
+from .projectiles import DartManager, Laser, MissileManager, BoomerangManager, LightningManager, WingmanManager, IceManager
 
 
 @dataclass
@@ -58,6 +58,14 @@ class Player:
     wingman_level: int
     wingman_manager: WingmanManager
 
+    # Ice (Chilling Wind) state
+    has_ice: bool
+    ice_level: int
+    ice_manager: IceManager
+
+    # Dart pierce level
+    dart_pierce_level: int
+
     def __init__(self, x: float, y: float):
         self.x = x
         self.y = y
@@ -96,6 +104,14 @@ class Player:
         self.has_wingman = False
         self.wingman_level = 0
         self.wingman_manager = WingmanManager()
+
+        # Ice (Chilling Wind) initialization
+        self.has_ice = False
+        self.ice_level = 0
+        self.ice_manager = IceManager()
+
+        # Dart pierce initialization
+        self.dart_pierce_level = 0
 
     def upgrade_laser(self) -> None:
         """Upgrade or buy laser."""
@@ -153,6 +169,20 @@ class Player:
         
         self.wingman_manager.set_count(self.wingman_level, self.x, self.y)
 
+    def upgrade_ice(self) -> None:
+        """Upgrade or buy Chilling Wind."""
+        if not self.has_ice:
+            self.has_ice = True
+            self.ice_level = 1
+        else:
+            self.ice_level += 1
+        
+        self.ice_manager.level = self.ice_level
+
+    def upgrade_dart_pierce(self) -> None:
+        """Upgrade dart pierce."""
+        self.dart_pierce_level += 1
+
     def handle_mouse(self, pos: Tuple[int, int]) -> None:
         self.target_x = pos[0]
         self.target_y = pos[1]
@@ -195,6 +225,9 @@ class Player:
         if self.has_lightning:
             self.lightning_manager.update(dt)
 
+        if self.has_ice:
+            self.ice_manager.update(self.x, self.y, dt)
+
         self.dart_manager.update(dt)
 
     def shoot(self) -> None:
@@ -215,6 +248,10 @@ class Player:
         self.missile_manager.spawn(lx, y, rx, y, aoe_radius)
 
     def draw(self, surface: pygame.Surface) -> None:
+        # -3. Ice (Chilling Wind) - drawn first so it's behind everything
+        if self.has_ice:
+            self.ice_manager.draw(surface, self.x, self.y)
+
         # -2. Boomerangs
         if self.has_boomerang:
             self.boomerang_manager.draw(surface)

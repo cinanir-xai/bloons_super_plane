@@ -127,7 +127,7 @@ def get_delayed_spawns() -> List[Tuple[float, List[Balloon]]]:
             x = 60 + col * 50
             y = -80 - row * 50
             # Cycle through all four colors
-            tier = [(row + col) % 4]  # 0=pink, 1=yellow, 2=green, 3=blue
+            tier = (row + col) % 4  # 0=pink, 1=yellow, 2=green, 3=blue
             # Map to our available tiers (no pink yet, use red instead)
             tier_map = {0: 4, 1: 1, 2: 2, 3: 3}  # red, yellow, green, blue
             balloons4.append(Balloon(x=x, y=y, tier=tier_map[tier], speed=BALLOON_SPEED))

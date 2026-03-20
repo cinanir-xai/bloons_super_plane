@@ -744,18 +744,21 @@ class Shop:
     """Shop screen accessible from main menu or level complete."""
     
     def __init__(self, total_orbs: int = 0, dart_speed_level: int = 0,
+                 dart_pierce_level: int = 0,
                  laser_level: int = 0, missile_level: int = 0, boomerang_level: int = 0,
-                 lightning_level: int = 0, wingman_level: int = 0,
+                 lightning_level: int = 0, ice_level: int = 0, wingman_level: int = 0,
                  orb_magnet_level: int = 0, orb_luck_level: int = 0,
                  show_next_level: bool = False, level_num: int = 1, has_next: bool = True,
                  stars_earned: int = 0, perfect: bool = False, popped_ratio: float = 0.0,
                  orbs_collected: int = 0):
         self.total_orbs = total_orbs
         self.dart_speed_level = dart_speed_level
+        self.dart_pierce_level = dart_pierce_level
         self.laser_level = laser_level
         self.missile_level = missile_level
         self.boomerang_level = boomerang_level
         self.lightning_level = lightning_level
+        self.ice_level = ice_level
         self.wingman_level = wingman_level
         self.orb_magnet_level = orb_magnet_level
         self.orb_luck_level = orb_luck_level
@@ -771,19 +774,26 @@ class Shop:
         # Recalculate costs
         from game.constants import (
             UPGRADE_DART_SPEED_BASE_COST, UPGRADE_DART_SPEED_COST_MULTIPLIER,
+            UPGRADE_DART_PIERCE_BASE_COST, UPGRADE_DART_PIERCE_COST_MULTIPLIER,
             LASER_UNLOCK_COST, LASER_BASE_COST, LASER_COST_MULTIPLIER,
             MISSILE_UNLOCK_COST, MISSILE_BASE_COST, MISSILE_COST_MULTIPLIER,
             BOOMERANG_UNLOCK_COST, BOOMERANG_BASE_COST, BOOMERANG_COST_MULTIPLIER,
             LIGHTNING_UNLOCK_COST, LIGHTNING_BASE_COST, LIGHTNING_COST_MULTIPLIER,
+            ICE_UNLOCK_COST, ICE_BASE_COST, ICE_COST_MULTIPLIER,
             WINGMAN_UNLOCK_COST, WINGMAN_BASE_COST, WINGMAN_COST_MULTIPLIER,
             ORB_MAGNET_UNLOCK_COST, ORB_MAGNET_BASE_COST, ORB_MAGNET_COST_MULTIPLIER,
             ORB_LUCK_UNLOCK_COST, ORB_LUCK_BASE_COST, ORB_LUCK_COST_MULTIPLIER
         )
         
-        # Dart: unlocked from beginning, upgrades start at 100, increase by 50%
+        # Dart Speed: unlocked from beginning, upgrades start at 100, increase by 50%
         self.dart_speed_cost = int(UPGRADE_DART_SPEED_BASE_COST * 
                                    (UPGRADE_DART_SPEED_COST_MULTIPLIER ** dart_speed_level))
         self.can_buy_dart_speed = self.total_orbs >= self.dart_speed_cost
+        
+        # Dart Pierce: unlocked from beginning, upgrades start at 100, increase by 50%
+        self.dart_pierce_cost = int(UPGRADE_DART_PIERCE_BASE_COST * 
+                                    (UPGRADE_DART_PIERCE_COST_MULTIPLIER ** dart_pierce_level))
+        self.can_buy_dart_pierce = self.total_orbs >= self.dart_pierce_cost
         
         # Laser: 200 to unlock, then 100 * 1.5^(level-1) for upgrades
         if laser_level == 0:
@@ -812,6 +822,13 @@ class Shop:
         else:
             self.lightning_cost = int(LIGHTNING_BASE_COST * (LIGHTNING_COST_MULTIPLIER ** (lightning_level - 1)))
         self.can_buy_lightning = self.total_orbs >= self.lightning_cost
+
+        # Ice (Chilling Wind): 200 to unlock, then 100 * 1.5^(level-1) for upgrades
+        if ice_level == 0:
+            self.ice_cost = ICE_UNLOCK_COST
+        else:
+            self.ice_cost = int(ICE_BASE_COST * (ICE_COST_MULTIPLIER ** (ice_level - 1)))
+        self.can_buy_ice = self.total_orbs >= self.ice_cost
 
         # Wingman: 200 to unlock, then 100 * 1.5^(level-1) for upgrades
         if wingman_level == 0:
@@ -865,37 +882,45 @@ class Shop:
                 if retry_x <= mx <= retry_x + 240 and retry_y <= my <= retry_y + 50:
                     return 'retry_level'
             
-            # Check upgrade buttons
-            # 2x4 grid click detection (8 total)
+            # Check upgrade buttons - 2x5 grid (10 total)
             grid_start_x = 80
             grid_start_y = 170
             btn_width = 420
-            btn_height = 150
+            btn_height = 110
             col_gap = 80
-            row_gap = 24
+            row_gap = 12
             
-            for i in range(8):
+            for i in range(10):
                 col = i % 2
                 row = i // 2
                 bx = grid_start_x + col * (btn_width + col_gap)
                 by = grid_start_y + row * (btn_height + row_gap)
                 
                 if bx <= mx <= bx + btn_width and by <= my <= by + btn_height:
+                    # Row 0: Dart Speed (0), Dart Pierce (1)
+                    # Row 1: Missile (2), Boomerang (3)
+                    # Row 2: Laser (4), Lightning (5)
+                    # Row 3: Ice (6), Wingman (7)
+                    # Row 4: Orb Magnet (8), Orb Luck (9)
                     if i == 0 and self.can_buy_dart_speed:
                         return 'buy_dart'
-                    elif i == 1 and self.can_buy_laser:
-                        return 'buy_laser'
+                    elif i == 1 and self.can_buy_dart_pierce:
+                        return 'buy_dart_pierce'
                     elif i == 2 and self.can_buy_missile:
                         return 'buy_missile'
                     elif i == 3 and self.can_buy_boomerang:
                         return 'buy_boomerang'
-                    elif i == 4 and self.can_buy_lightning:
+                    elif i == 4 and self.can_buy_laser:
+                        return 'buy_laser'
+                    elif i == 5 and self.can_buy_lightning:
                         return 'buy_lightning'
-                    elif i == 5 and self.can_buy_wingman:
+                    elif i == 6 and self.can_buy_ice:
+                        return 'buy_ice'
+                    elif i == 7 and self.can_buy_wingman:
                         return 'buy_wingman'
-                    elif i == 6 and self.can_buy_orb_magnet:
+                    elif i == 8 and self.can_buy_orb_magnet:
                         return 'buy_orb_magnet'
-                    elif i == 7 and self.can_buy_orb_luck:
+                    elif i == 9 and self.can_buy_orb_luck:
                         return 'buy_orb_luck'
         
         return 'none'
@@ -904,10 +929,12 @@ class Shop:
         """Attempt to buy an upgrade. Returns True if successful."""
         from game.constants import (
             UPGRADE_DART_SPEED_BASE_COST, UPGRADE_DART_SPEED_COST_MULTIPLIER,
+            UPGRADE_DART_PIERCE_BASE_COST, UPGRADE_DART_PIERCE_COST_MULTIPLIER,
             LASER_UNLOCK_COST, LASER_BASE_COST, LASER_COST_MULTIPLIER,
             MISSILE_UNLOCK_COST, MISSILE_BASE_COST, MISSILE_COST_MULTIPLIER,
             BOOMERANG_UNLOCK_COST, BOOMERANG_BASE_COST, BOOMERANG_COST_MULTIPLIER,
             LIGHTNING_UNLOCK_COST, LIGHTNING_BASE_COST, LIGHTNING_COST_MULTIPLIER,
+            ICE_UNLOCK_COST, ICE_BASE_COST, ICE_COST_MULTIPLIER,
             WINGMAN_UNLOCK_COST, WINGMAN_BASE_COST, WINGMAN_COST_MULTIPLIER,
             ORB_MAGNET_UNLOCK_COST, ORB_MAGNET_BASE_COST, ORB_MAGNET_COST_MULTIPLIER,
             ORB_LUCK_UNLOCK_COST, ORB_LUCK_BASE_COST, ORB_LUCK_COST_MULTIPLIER
@@ -919,6 +946,13 @@ class Shop:
             self.dart_speed_cost = int(UPGRADE_DART_SPEED_BASE_COST * 
                                         (UPGRADE_DART_SPEED_COST_MULTIPLIER ** self.dart_speed_level))
             self.can_buy_dart_speed = self.total_orbs >= self.dart_speed_cost
+            return True
+        elif upgrade_type == 'dart_pierce' and self.can_buy_dart_pierce:
+            self.total_orbs -= self.dart_pierce_cost
+            self.dart_pierce_level += 1
+            self.dart_pierce_cost = int(UPGRADE_DART_PIERCE_BASE_COST * 
+                                         (UPGRADE_DART_PIERCE_COST_MULTIPLIER ** self.dart_pierce_level))
+            self.can_buy_dart_pierce = self.total_orbs >= self.dart_pierce_cost
             return True
         elif upgrade_type == 'laser' and self.can_buy_laser:
             self.total_orbs -= self.laser_cost
@@ -959,6 +993,16 @@ class Shop:
             else:
                 self.lightning_cost = int(LIGHTNING_BASE_COST * (LIGHTNING_COST_MULTIPLIER ** (self.lightning_level - 1)))
             self.can_buy_lightning = self.total_orbs >= self.lightning_cost
+            return True
+        elif upgrade_type == 'ice' and self.can_buy_ice:
+            self.total_orbs -= self.ice_cost
+            self.ice_level += 1
+            # After unlock, upgrades cost 100 * 1.5^(level-1)
+            if self.ice_level == 1:
+                self.ice_cost = ICE_BASE_COST
+            else:
+                self.ice_cost = int(ICE_BASE_COST * (ICE_COST_MULTIPLIER ** (self.ice_level - 1)))
+            self.can_buy_ice = self.total_orbs >= self.ice_cost
             return True
         elif upgrade_type == 'wingman' and self.can_buy_wingman:
             self.total_orbs -= self.wingman_cost
@@ -1056,23 +1100,30 @@ class Shop:
         back_text = font_small.render("BACK", True, (200, 190, 180))
         surface.blit(back_text, (back_x + 15, back_y + 8))
         
-        # Upgrade items in 2x4 grid
+        # Upgrade items in 2x5 grid (10 total)
+        # Order: Dart Speed, Dart Pierce, Missile, Boomerang, Laser, Lightning, Ice, Wingman, Orb Magnet, Orb Luck
         items = [
             ("Dart Speed +20%", self.dart_speed_level, self.dart_speed_cost, 
              self.can_buy_dart_speed, COLOR_WHITE, 
              "Increases dart speed by 20% per level"),
-            ("Laser Beam", self.laser_level, self.laser_cost,
-             self.can_buy_laser, COLOR_CYAN,
-             "Fires a laser that damages balloons over time"),
+            ("Dart Pierce +1", self.dart_pierce_level, self.dart_pierce_cost,
+             self.can_buy_dart_pierce, COLOR_YELLOW,
+             "Darts pierce through +1 balloon per level"),
             ("Missiles", self.missile_level, self.missile_cost,
              self.can_buy_missile, COLOR_ORANGE,
              "Launches missiles with area damage"),
             ("Boomerang", self.boomerang_level, self.boomerang_cost,
              self.can_buy_boomerang, COLOR_BROWN,
              "Adds orbiting boomerangs that damage balloons"),
+            ("Laser Beam", self.laser_level, self.laser_cost,
+             self.can_buy_laser, COLOR_CYAN,
+             "Fires a laser that damages balloons over time"),
             ("Lightning", self.lightning_level, self.lightning_cost,
              self.can_buy_lightning, (180, 120, 255),
              "Strikes closest balloon and arcs to nearby ones"),
+            ("Chilling Wind", self.ice_level, self.ice_cost,
+             self.can_buy_ice, (150, 220, 255),
+             "Snowstorm slows and damages balloons in radius"),
             ("Wingman Aces", self.wingman_level, self.wingman_cost,
              self.can_buy_wingman, (255, 120, 120),
              "Deploys ally planes that shoot at closest balloons"),
@@ -1084,13 +1135,17 @@ class Shop:
              "Chance to spawn extra orbs when popping balloons")
         ]
         
-        # 2x4 grid layout
+        # 2x5 grid layout - position depends on whether stars are shown
         grid_start_x = 80
-        grid_start_y = 170
+        # If showing stars (level complete), start grid below star panel
+        if self.show_next_level:
+            grid_start_y = 280  # Below star panel (panel_y=115, height=150, ends at 265)
+        else:
+            grid_start_y = 170
         btn_width = 420
-        btn_height = 150
+        btn_height = 110
         col_gap = 80
-        row_gap = 24
+        row_gap = 12
         
         # Get mouse position for hover
         mx, my = pygame.mouse.get_pos()
@@ -1175,8 +1230,8 @@ class Shop:
             action_badge = font_tiny.render(action_text, True, action_color)
             surface.blit(action_badge, (info_x, info_y + 100))
         
-        # Tooltip panel below the 8 options grid
-        grid_end_y = grid_start_y + 4 * (btn_height + row_gap) - row_gap
+        # Tooltip panel below the 10 options grid
+        grid_end_y = grid_start_y + 5 * (btn_height + row_gap) - row_gap
         tooltip_x = 100
         tooltip_y = grid_end_y + 16
         tooltip_w = SCREEN_WIDTH - 200
@@ -1239,8 +1294,10 @@ class Shop:
             
             # Show specific stats based on weapon
             stats_y = tooltip_y + 35
-            if "Dart" in name:
+            if "Speed" in name:
                 stats = ["+20% speed per level", "Fires from both wings", "Fast cooldown"]
+            elif "Pierce" in name:
+                stats = ["+1 pierce per level", "Affects player & wingman darts", "Darts hit multiple balloons"]
             elif "Laser" in name:
                 stats = ["Continuous beam", "-15% cooldown per level", "Destroys layers over time"]
             elif "Missile" in name:
@@ -1249,6 +1306,8 @@ class Shop:
                 stats = ["Orbits player", "Pierces balloons", "+1 per level"]
             elif "Lightning" in name:
                 stats = ["Targets closest balloon", "+2 arcs per level", "-10% cooldown per level"]
+            elif "Chilling" in name or "Wind" in name:
+                stats = ["+5% radius per level", "+5% slow per level", "+5% damage speed per level"]
             elif "Wingman" in name:
                 stats = ["Ally planes", "Shoots at half rate", "Targets closest balloon"]
             elif "Orb Magnet" in name:
@@ -1416,7 +1475,7 @@ class Shop:
         """Draw a large icon for each upgrade in the workshop."""
         alpha = 255 if can_buy else 100
         
-        if index == 0:  # Dart
+        if index == 0:  # Dart Speed
             # Large dart
             pygame.draw.polygon(surface, color, [
                 (cx, cy - 30), (cx + 10, cy - 5), (cx + 5, cy - 5),
@@ -1433,12 +1492,24 @@ class Shop:
             ])
             pygame.draw.rect(surface, (200, 50, 50), (cx - 6, cy + 18, 12, 6))
             
-        elif index == 1:  # Laser
-            # Laser beam
-            pygame.draw.line(surface, color, (cx, cy - 40), (cx, cy + 40), 8)
-            pygame.draw.line(surface, COLOR_WHITE, (cx, cy - 40), (cx, cy + 40), 4)
-            pygame.draw.circle(surface, color, (cx, cy), 15)
-            pygame.draw.circle(surface, COLOR_WHITE, (cx, cy), 8)
+        elif index == 1:  # Dart Pierce
+            # Multiple darts to show pierce
+            for offset in [-12, 0, 12]:
+                pygame.draw.polygon(surface, color, [
+                    (cx + offset, cy - 25), (cx + offset + 6, cy - 5), (cx + offset + 3, cy - 5),
+                    (cx + offset + 3, cy + 15), (cx + offset - 3, cy + 15),
+                    (cx + offset - 3, cy - 5), (cx + offset - 6, cy - 5)
+                ])
+                pygame.draw.polygon(surface, COLOR_BLACK, [
+                    (cx + offset, cy - 25), (cx + offset + 6, cy - 5), (cx + offset + 3, cy - 5),
+                    (cx + offset + 3, cy + 15), (cx + offset - 3, cy + 15),
+                    (cx + offset - 3, cy - 5), (cx + offset - 6, cy - 5)
+                ], 1)
+            # Pierce symbol
+            pygame.draw.circle(surface, COLOR_YELLOW, (cx, cy + 28), 8)
+            pygame.draw.circle(surface, COLOR_BLACK, (cx, cy + 28), 8, 1)
+            pierce_text = pygame.font.Font(None, 20).render("+", True, COLOR_BLACK)
+            surface.blit(pierce_text, (cx - 4, cy + 22))
             
         elif index == 2:  # Missile
             pygame.draw.rect(surface, COLOR_WHITE, (cx - 8, cy - 20, 16, 40))
@@ -1462,7 +1533,14 @@ class Shop:
             pygame.draw.line(surface, (100, 60, 30), (cx - 20, cy + 5), (cx + 20, cy + 5), 2)
             pygame.draw.line(surface, (100, 60, 30), (cx - 15, cy + 15), (cx + 15, cy + 15), 2)
             
-        elif index == 4:  # Lightning
+        elif index == 4:  # Laser
+            # Laser beam
+            pygame.draw.line(surface, color, (cx, cy - 40), (cx, cy + 40), 8)
+            pygame.draw.line(surface, COLOR_WHITE, (cx, cy - 40), (cx, cy + 40), 4)
+            pygame.draw.circle(surface, color, (cx, cy), 15)
+            pygame.draw.circle(surface, COLOR_WHITE, (cx, cy), 8)
+            
+        elif index == 5:  # Lightning
             pygame.draw.line(surface, (210, 160, 255), (cx - 15, cy - 35), (cx + 5, cy - 5), 10)
             pygame.draw.line(surface, (210, 160, 255), (cx + 5, cy - 5), (cx - 5, cy + 30), 10)
             pygame.draw.line(surface, color, (cx - 12, cy - 30), (cx + 5, cy - 5), 6)
@@ -1470,7 +1548,31 @@ class Shop:
             pygame.draw.line(surface, COLOR_WHITE, (cx - 12, cy - 30), (cx + 5, cy - 5), 2)
             pygame.draw.line(surface, COLOR_WHITE, (cx + 5, cy - 5), (cx - 2, cy + 25), 2)
             
-        elif index == 5:  # Wingman
+        elif index == 6:  # Chilling Wind (Ice)
+            # Snowflake/ice crystal icon
+            # Central circle with frost effect
+            pygame.draw.circle(surface, (200, 230, 255), (cx, cy), 25)
+            pygame.draw.circle(surface, color, (cx, cy), 20)
+            pygame.draw.circle(surface, (220, 240, 255), (cx, cy), 12)
+            # Ice crystals radiating outward
+            for angle in range(0, 360, 60):
+                rad = math.radians(angle)
+                end_x = cx + math.cos(rad) * 35
+                end_y = cy + math.sin(rad) * 35
+                pygame.draw.line(surface, color, (cx, cy), (end_x, end_y), 4)
+                # Small branches
+                branch_rad1 = rad + math.radians(30)
+                branch_rad2 = rad - math.radians(30)
+                mid_x = cx + math.cos(rad) * 25
+                mid_y = cy + math.sin(rad) * 25
+                pygame.draw.line(surface, color, (mid_x, mid_y), 
+                               (mid_x + math.cos(branch_rad1) * 10, mid_y + math.sin(branch_rad1) * 10), 2)
+                pygame.draw.line(surface, color, (mid_x, mid_y), 
+                               (mid_x + math.cos(branch_rad2) * 10, mid_y + math.sin(branch_rad2) * 10), 2)
+            # Swirl effect for wind
+            pygame.draw.arc(surface, (180, 220, 255), (cx - 15, cy - 5, 30, 20), 0, math.pi, 2)
+        
+        elif index == 7:  # Wingman
             # Larger wingman plane
             pygame.draw.circle(surface, (255, 80, 80, 80), (cx, cy), 35)
             pygame.draw.rect(surface, color, (cx - 25, cy - 5, 50, 10))
@@ -1487,7 +1589,7 @@ class Shop:
             pygame.draw.line(surface, (200, 200, 200), (cx - 12, cy - 26), (cx + 12, cy - 26), 3)
             pygame.draw.line(surface, (200, 200, 200), (cx, cy - 30), (cx, cy - 22), 3)
         
-        elif index == 6:  # Orb Magnet
+        elif index == 8:  # Orb Magnet
             # Horseshoe magnet icon
             pygame.draw.arc(surface, color, (cx - 25, cy - 25, 50, 50), 3.5, 5.9, 10)
             pygame.draw.arc(surface, COLOR_BLACK, (cx - 25, cy - 25, 50, 50), 3.5, 5.9, 3)
@@ -1497,7 +1599,7 @@ class Shop:
             pygame.draw.rect(surface, COLOR_BLACK, (cx + 16, cy + 5, 10, 18), 1)
             pygame.draw.circle(surface, (200, 230, 255), (cx, cy - 10), 6)
         
-        elif index == 7:  # Orb Luck
+        elif index == 9:  # Orb Luck
             # Clover-like luck icon
             pygame.draw.circle(surface, color, (cx - 8, cy - 6), 10)
             pygame.draw.circle(surface, color, (cx + 8, cy - 6), 10)

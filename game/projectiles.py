@@ -14,7 +14,9 @@ from .constants import (
     LIGHTNING_BASE_ARCS, LIGHTNING_ARC_GROWTH,
     LIGHTNING_STRIKE_COLOR, LIGHTNING_GLOW_COLOR,
     WINGMAN_MAX_SPEED, WINGMAN_MIN_SPEED, WINGMAN_TURN_RATE, WINGMAN_ORBIT_RADIUS,
-    WINGMAN_DART_COOLDOWN_MULTIPLIER
+    WINGMAN_DART_COOLDOWN_MULTIPLIER,
+    ICE_BASE_RADIUS, ICE_RADIUS_GROWTH, ICE_BASE_SLOW, ICE_SLOW_GROWTH,
+    ICE_BASE_DAMAGE_INTERVAL, ICE_DAMAGE_INTERVAL_GROWTH
 )
 from .effects import DartTrail, ParticleSystem, MissileTrail, Explosion
 import math
@@ -337,6 +339,8 @@ class Dart:
     angle: float
     life: float
     trail: DartTrail
+    pierce: int = 1  # Number of balloons this dart can hit
+    hits: int = 0  # Number of balloons hit so far
 
     def update(self, dt: float) -> bool:
         """Update dart position. Returns False if dart should be removed."""
@@ -356,6 +360,14 @@ class Dart:
         """Get collision rectangle."""
         return pygame.Rect(self.x - DART_WIDTH // 2, self.y - DART_HEIGHT // 2,
                           DART_WIDTH, DART_HEIGHT)
+
+    def can_hit(self) -> bool:
+        """Check if dart can still hit more balloons."""
+        return self.hits < self.pierce
+
+    def record_hit(self) -> None:
+        """Record a hit on a balloon."""
+        self.hits += 1
 
     def draw(self, surface: pygame.Surface) -> None:
         """Draw the dart with enhanced visual appeal."""
@@ -407,7 +419,7 @@ class Dart:
         surface.blit(rotated, rect)
 
     @classmethod
-    def create_from_wing(cls, x: float, y: float, speed_level: int = 0) -> 'Dart':
+    def create_from_wing(cls, x: float, y: float, speed_level: int = 0, pierce: int = 1) -> 'Dart':
         """Create a dart from a wing position."""
         speed_multiplier = 1 + 0.2 * speed_level
         return cls(
@@ -416,7 +428,8 @@ class Dart:
             vy=-DART_SPEED * speed_multiplier,
             angle=0,
             life=DART_LIFETIME,
-            trail=DartTrail()
+            trail=DartTrail(),
+            pierce=pierce
         )
 
 
@@ -426,16 +439,19 @@ class DartManager:
     def __init__(self):
         self.darts: List[Dart] = []
         self.dart_speed_level = 0
+        self.dart_pierce_level = 0
 
     def spawn_from_player(self, left_wing_x: float, left_wing_y: float,
                          right_wing_x: float, right_wing_y: float) -> None:
         """Spawn darts from both wings."""
-        self.darts.append(Dart.create_from_wing(left_wing_x, left_wing_y, self.dart_speed_level))
-        self.darts.append(Dart.create_from_wing(right_wing_x, right_wing_y, self.dart_speed_level))
+        pierce = 1 + self.dart_pierce_level
+        self.darts.append(Dart.create_from_wing(left_wing_x, left_wing_y, self.dart_speed_level, pierce))
+        self.darts.append(Dart.create_from_wing(right_wing_x, right_wing_y, self.dart_speed_level, pierce))
 
     def spawn_single(self, x: float, y: float, angle_deg: float = 0.0) -> None:
         """Spawn a single dart from a position."""
         speed_multiplier = 1 + 0.2 * self.dart_speed_level
+        pierce = 1 + self.dart_pierce_level
         angle_rad = math.radians(angle_deg - 90)
         vx = math.cos(angle_rad) * DART_SPEED * speed_multiplier
         vy = math.sin(angle_rad) * DART_SPEED * speed_multiplier
@@ -446,7 +462,8 @@ class DartManager:
             vy=vy,
             angle=angle_deg,
             life=DART_LIFETIME,
-            trail=DartTrail()
+            trail=DartTrail(),
+            pierce=pierce
         ))
 
     def update(self, dt: float) -> None:
@@ -696,3 +713,121 @@ class LightningManager:
         """Draw all active lightning strikes."""
         for strike in self.strikes:
             strike.draw(surface)
+
+
+class IceManager:
+    """Manages the Chilling Wind snowstorm effect around the player."""
+    
+    def __init__(self, level: int = 0):
+        self.level = level
+        self.snowflakes: List[dict] = []
+        self.time = 0.0
+    
+    def get_radius(self) -> float:
+        """Get current snowstorm radius based on level."""
+        if self.level <= 0:
+            return 0
+        return ICE_BASE_RADIUS * (1 + ICE_RADIUS_GROWTH * (self.level - 1))
+    
+    def get_slow_amount(self) -> float:
+        """Get slow percentage (0.0 to 1.0)."""
+        if self.level <= 0:
+            return 0
+        return ICE_BASE_SLOW * (1 + ICE_SLOW_GROWTH * (self.level - 1))
+    
+    def get_damage_interval(self) -> float:
+        """Get time between damage ticks in seconds."""
+        if self.level <= 0:
+            return float('inf')
+        return ICE_BASE_DAMAGE_INTERVAL * (1 - ICE_DAMAGE_INTERVAL_GROWTH * (self.level - 1))
+    
+    def update(self, player_x: float, player_y: float, dt: float) -> None:
+        """Update snowstorm position and particles."""
+        self.time += dt
+        
+        if self.level <= 0:
+            return
+        
+        # Spawn new snowflakes
+        radius = self.get_radius()
+        spawn_rate = 0.02 + self.level * 0.005  # More snowflakes at higher levels
+        while random.random() < spawn_rate:
+            angle = random.uniform(0, 2 * math.pi)
+            dist = random.uniform(0, radius)
+            self.snowflakes.append({
+                'x': player_x + math.cos(angle) * dist,
+                'y': player_y + math.sin(angle) * dist,
+                'vx': random.uniform(-30, 30),
+                'vy': random.uniform(-30, 30),
+                'size': random.uniform(2, 5),
+                'alpha': random.uniform(100, 200),
+                'life': random.uniform(0.5, 1.5)
+            })
+        
+        # Update existing snowflakes
+        updated = []
+        for sf in self.snowflakes:
+            sf['life'] -= dt
+            if sf['life'] <= 0:
+                continue
+            sf['x'] += sf['vx'] * dt
+            sf['y'] += sf['vy'] * dt
+            sf['alpha'] = max(0, sf['alpha'] - dt * 50)
+            updated.append(sf)
+        self.snowflakes = updated
+    
+    def draw(self, surface: pygame.Surface, player_x: float, player_y: float) -> None:
+        """Draw the snowstorm effect."""
+        if self.level <= 0:
+            return
+        
+        radius = self.get_radius()
+        
+        # Draw outer glow/fog
+        fog_surface = pygame.Surface((int(radius * 2.5), int(radius * 2.5)), pygame.SRCALPHA)
+        center = int(radius * 1.25)
+        
+        # Multiple layers of fog for depth
+        for r_mult in [1.0, 0.8, 0.6]:
+            r = int(radius * r_mult)
+            alpha = int(30 * r_mult)
+            pygame.draw.circle(fog_surface, (180, 220, 255, alpha), (center, center), r)
+        
+        # Draw the fog surface
+        surface.blit(fog_surface, (int(player_x - center), int(player_y - center)))
+        
+        # Draw swirling wind lines
+        num_swirls = 6 + self.level
+        for i in range(num_swirls):
+            angle = self.time * 2 + i * (2 * math.pi / num_swirls)
+            r = radius * 0.3 + radius * 0.5 * math.sin(self.time * 3 + i)
+            x = player_x + math.cos(angle) * r
+            y = player_y + math.sin(angle) * r
+            # Draw a small wind streak
+            streak_len = 15 + 5 * math.sin(self.time * 5 + i)
+            end_x = x + math.cos(angle + math.pi / 2) * streak_len
+            end_y = y + math.sin(angle + math.pi / 2) * streak_len
+            pygame.draw.line(surface, (200, 230, 255), (int(x), int(y)), (int(end_x), int(end_y)), 2)
+        
+        # Draw snowflakes
+        for sf in self.snowflakes:
+            alpha = int(max(0, min(255, sf['alpha'])))
+            size = int(sf['size'])
+            snow_surface = pygame.Surface((size * 2 + 2, size * 2 + 2), pygame.SRCALPHA)
+            pygame.draw.circle(snow_surface, (220, 240, 255, alpha), (size + 1, size + 1), size)
+            surface.blit(snow_surface, (int(sf['x'] - size - 1), int(sf['y'] - size - 1)))
+        
+        # Draw ice crystals at the edge
+        num_crystals = 8 + self.level * 2
+        for i in range(num_crystals):
+            angle = i * (2 * math.pi / num_crystals) + self.time * 0.5
+            x = player_x + math.cos(angle) * radius * 0.9
+            y = player_y + math.sin(angle) * radius * 0.9
+            
+            # Draw a small ice crystal
+            crystal_size = 4 + 2 * math.sin(self.time * 4 + i)
+            pygame.draw.circle(surface, (180, 220, 255), (int(x), int(y)), int(crystal_size))
+            pygame.draw.circle(surface, (220, 240, 255), (int(x), int(y)), int(crystal_size * 0.6))
+        
+        # Draw radius indicator (subtle circle)
+        pygame.draw.circle(surface, (150, 200, 230), (int(player_x), int(player_y)), int(radius), 1)

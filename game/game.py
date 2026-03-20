@@ -117,10 +117,12 @@ class Game:
         self.shop = Shop(
             total_orbs=self.orb_manager.total_orbs,
             dart_speed_level=self.player.dart_manager.dart_speed_level if hasattr(self.player.dart_manager, 'dart_speed_level') else 0,
+            dart_pierce_level=self.player.dart_pierce_level,
             laser_level=self.player.laser_level,
             missile_level=self.player.missile_level,
             boomerang_level=self.player.boomerang_level,
             lightning_level=self.player.lightning_level,
+            ice_level=self.player.ice_level,
             wingman_level=self.player.wingman_level,
             orb_magnet_level=self.orb_manager.magnet_level,
             orb_luck_level=self.orb_manager.orb_luck_level,
@@ -193,6 +195,8 @@ class Game:
                     self._sync_player_upgrades()
                 elif result == 'buy_dart':
                     self.shop.buy_upgrade('dart')
+                elif result == 'buy_dart_pierce':
+                    self.shop.buy_upgrade('dart_pierce')
                 elif result == 'buy_laser':
                     self.shop.buy_upgrade('laser')
                 elif result == 'buy_missile':
@@ -201,6 +205,8 @@ class Game:
                     self.shop.buy_upgrade('boomerang')
                 elif result == 'buy_lightning':
                     self.shop.buy_upgrade('lightning')
+                elif result == 'buy_ice':
+                    self.shop.buy_upgrade('ice')
                 elif result == 'buy_wingman':
                     self.shop.buy_upgrade('wingman')
                 elif result == 'buy_orb_magnet':
@@ -231,10 +237,12 @@ class Game:
         self.shop = Shop(
             total_orbs=self.orb_manager.total_orbs,
             dart_speed_level=self.player.dart_manager.dart_speed_level if hasattr(self.player.dart_manager, 'dart_speed_level') else 0,
+            dart_pierce_level=self.player.dart_pierce_level,
             laser_level=self.player.laser_level,
             missile_level=self.player.missile_level,
             boomerang_level=self.player.boomerang_level,
             lightning_level=self.player.lightning_level,
+            ice_level=self.player.ice_level,
             wingman_level=self.player.wingman_level,
             orb_magnet_level=self.orb_manager.magnet_level,
             orb_luck_level=self.orb_manager.orb_luck_level,
@@ -255,13 +263,19 @@ class Game:
             self.player.upgrade_boomerang()
         while self.player.lightning_level < self.shop.lightning_level:
             self.player.upgrade_lightning()
+        while self.player.ice_level < self.shop.ice_level:
+            self.player.upgrade_ice()
         while self.player.wingman_level < self.shop.wingman_level:
             self.player.upgrade_wingman()
+        while self.player.dart_pierce_level < self.shop.dart_pierce_level:
+            self.player.upgrade_dart_pierce()
         if hasattr(self.player.dart_manager, 'dart_speed_level'):
             while self.player.dart_manager.dart_speed_level < self.shop.dart_speed_level:
                 self.player.dart_manager.dart_speed_level += 1
         else:
             self.player.dart_manager.dart_speed_level = self.shop.dart_speed_level
+        # Sync dart pierce level to dart manager
+        self.player.dart_manager.dart_pierce_level = self.player.dart_pierce_level
 
         self.orb_manager.set_magnet_level(self.shop.orb_magnet_level)
         self.orb_manager.set_orb_luck_level(self.shop.orb_luck_level)
@@ -301,6 +315,8 @@ class Game:
             balloon_candidates = [b for b in self.balloon_manager.balloons if not b.popped]
             self._collision_checked.clear()
             for dart in darts[:]:
+                if not dart.can_hit():
+                    continue
                 for balloon in balloon_candidates:
                     pair_key = (id(dart), id(balloon))
                     if pair_key in self._collision_checked:
@@ -313,7 +329,11 @@ class Game:
                         # Pop balloon with subtle screen shake (10% of original)
                         self.balloon_manager.pop_balloon(balloon, dart.x, dart.y, damage_type="physical")
                         self.screen_shake.trigger(intensity=0.8, duration=0.6)
-                        self.player.dart_manager.remove_dart(dart)
+                        
+                        # Record the hit and check if dart should be removed
+                        dart.record_hit()
+                        if not dart.can_hit():
+                            self.player.dart_manager.remove_dart(dart)
                         
                         # Track for level completion (only count when fully popped)
                         if will_pop:
@@ -420,6 +440,46 @@ class Game:
                             self.level_manager.balloon_popped()
                         # Boomerang pierces, so no break here
 
+        # Check ice (Chilling Wind) effects
+        if self.player.has_ice:
+            from .enemies import BALLOON_TYPE_WHITE, BALLOON_TYPE_ZEBRA, BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB
+            ice_manager = self.player.ice_manager
+            ice_radius = ice_manager.get_radius()
+            ice_slow = ice_manager.get_slow_amount()
+            ice_damage_interval = ice_manager.get_damage_interval()
+            
+            active_balloons = [b for b in self.balloon_manager.balloons if not b.popped]
+            for balloon in active_balloons:
+                # Calculate distance from player
+                dx = balloon.x - self.player.x
+                dy = balloon.y - self.player.y
+                dist = (dx * dx + dy * dy) ** 0.5
+                
+                # Check if balloon is in ice radius
+                # MOAB/BFB have larger hitboxes
+                if balloon.balloon_type in (BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB):
+                    effective_radius = ice_radius + max(balloon.width, balloon.height) / 2
+                else:
+                    effective_radius = ice_radius + balloon.radius
+                
+                if dist < effective_radius:
+                    # White and Zebra balloons are immune to ice
+                    if balloon.balloon_type in (BALLOON_TYPE_WHITE, BALLOON_TYPE_ZEBRA):
+                        continue
+                    
+                    # Apply slow effect
+                    balloon.slow_amount = ice_slow
+                    
+                    # Apply damage over time
+                    balloon.ice_damage_timer += dt
+                    if balloon.ice_damage_timer >= ice_damage_interval:
+                        balloon.ice_damage_timer = 0
+                        # Apply ice damage
+                        will_pop = balloon.tier >= 4 or balloon.balloon_type in (BALLOON_TYPE_MOAB, BALLOON_TYPE_BFB)
+                        self.balloon_manager.pop_balloon(balloon, balloon.x, balloon.y, damage_type="ice")
+                        if will_pop:
+                            self.level_manager.balloon_popped()
+
         # Check lightning strikes
         if self.player.has_lightning and self.player.lightning_manager.can_strike():
             target = self._get_closest_balloon(self.player.x, self.player.y)
@@ -495,10 +555,12 @@ class Game:
         self.shop = Shop(
             total_orbs=self.orb_manager.total_orbs,
             dart_speed_level=self.player.dart_manager.dart_speed_level if hasattr(self.player.dart_manager, 'dart_speed_level') else 0,
+            dart_pierce_level=self.player.dart_pierce_level,
             laser_level=self.player.laser_level,
             missile_level=self.player.missile_level,
             boomerang_level=self.player.boomerang_level,
             lightning_level=self.player.lightning_level,
+            ice_level=self.player.ice_level,
             wingman_level=self.player.wingman_level,
             orb_magnet_level=self.orb_manager.magnet_level,
             orb_luck_level=self.orb_manager.orb_luck_level,

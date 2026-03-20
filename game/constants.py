@@ -60,6 +60,22 @@ ORB_LUCK_CHANCE_PER_LEVEL = 0.05
 UPGRADE_DART_SPEED_BASE_COST = 100
 UPGRADE_DART_SPEED_COST_MULTIPLIER = 1.5
 
+# Dart Pierce settings
+UPGRADE_DART_PIERCE_BASE_COST = 100
+UPGRADE_DART_PIERCE_COST_MULTIPLIER = 1.5
+DART_BASE_PIERCE = 1  # Base number of balloons a dart can hit
+
+# Chilling Wind (Ice) settings
+ICE_UNLOCK_COST = 200  # Cost to unlock the weapon
+ICE_BASE_COST = 100  # First upgrade cost after unlock
+ICE_COST_MULTIPLIER = 1.5
+ICE_BASE_RADIUS = 120  # Same as boomerang orbit radius
+ICE_RADIUS_GROWTH = 0.05  # 5% per level
+ICE_BASE_SLOW = 0.10  # 10% slow
+ICE_SLOW_GROWTH = 0.05  # 5% more slow per level
+ICE_BASE_DAMAGE_INTERVAL = 1.0  # 1 second between damage
+ICE_DAMAGE_INTERVAL_GROWTH = 0.05  # 5% faster per level
+
 # Laser settings
 LASER_BASE_COOLDOWN = 5000  # ms
 LASER_BASE_DURATION = 3000  # ms

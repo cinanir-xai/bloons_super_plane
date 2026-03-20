@@ -134,6 +134,9 @@ class Balloon:
     # Dimensions for rectangular balloons (MOAB)
     width: float = 0.0
     height: float = 0.0
+    # Ice/slow effect tracking
+    ice_damage_timer: float = 0.0
+    slow_amount: float = 0.0
 
     def __post_init__(self):
         # Set dimensions based on balloon type
@@ -407,8 +410,12 @@ class Balloon:
         # Update time alive
         self.time_alive += dt * 60
         
-        # Calculate effective speed
-        effective_speed = self.speed * self.speed_multiplier
+        # Calculate effective speed (apply slow effect)
+        slow_factor = 1.0 - self.slow_amount
+        effective_speed = self.speed * self.speed_multiplier * slow_factor
+        
+        # Decay slow effect over time (when not in ice radius)
+        self.slow_amount = max(0, self.slow_amount - dt * 0.5)
         
         # Apply movement pattern
         if self.pattern == "vertical":
