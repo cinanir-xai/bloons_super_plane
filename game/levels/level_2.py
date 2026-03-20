@@ -1,44 +1,79 @@
-"""Level 2 - Blue Balloons (15x15 grid)."""
+"""Level 2 - Green and Yellow Balloons with Creative Patterns."""
 
-from typing import List
-from game.enemies import Balloon, get_balloon_radius
-from game.constants import SCREEN_WIDTH, COLOR_BLUE, BALLOON_SPEED
+from typing import List, Tuple
+import math
+from ..enemies import Balloon, get_balloon_radius
+from ..constants import SCREEN_WIDTH, BALLOON_SPEED
 
 LEVEL_NUMBER = 2
-LEVEL_NAME = "Blue Wave"
-BALLOON_TIER = 3  # Blue
+LEVEL_NAME = "Green & Yellow"
+BALLOON_TIER = 2  # Green base
 
 def create_balloons() -> List[Balloon]:
-    """Create 15x15 grid of blue balloons."""
+    """Wave 1: Yellow balloons in spiral pattern."""
     balloons = []
-    cols = 15
-    rows = 15
-    # Calculate spacing based on balloon radius with 80% reduced gap (almost touching)
-    balloon_radius = get_balloon_radius(BALLOON_TIER)
-    balloon_diameter = balloon_radius * 2
-    gap = balloon_diameter * 0.2  # 20% of diameter (80% reduction from original gap)
-    spacing_x = balloon_diameter + gap
+    center_x = SCREEN_WIDTH / 2
+    center_y = -200
     
-    # Center the grid horizontally
-    grid_width = spacing_x * cols - gap
-    start_x = (SCREEN_WIDTH - grid_width) / 2 + balloon_radius
-    
-    spacing_y = 50
-    
-    for row in range(rows):
-        for col in range(cols):
-            x = start_x + col * spacing_x
-            y = -100 - (row * spacing_y)
-            
-            balloon = Balloon(
-                x=x,
-                y=y,
-                tier=BALLOON_TIER,
-                speed=BALLOON_SPEED
-            )
-            balloons.append(balloon)
+    # Spiral of yellow balloons (tier 1)
+    for i in range(40):
+        angle = i * 0.4
+        radius = 20 + i * 8
+        x = center_x + math.cos(angle) * radius
+        y = center_y + math.sin(angle) * radius * 0.6
+        
+        balloons.append(Balloon(x=x, y=y, tier=1, speed=BALLOON_SPEED))  # Yellow
     
     return balloons
 
+
+def get_delayed_spawns() -> List[Tuple[float, List[Balloon]]]:
+    """Waves 2-4 with 7s breathing room."""
+    delayed = []
+    
+    # Wave 2: Green balloons in diamond (7s)
+    balloons2 = []
+    center_x = SCREEN_WIDTH / 2
+    center_y = -150
+    
+    for i in range(8):
+        # Diamond points
+        balloons2.append(Balloon(x=center_x, y=center_y - i*30, tier=2, speed=BALLOON_SPEED))  # Green
+        balloons2.append(Balloon(x=center_x, y=center_y + i*30, tier=2, speed=BALLOON_SPEED))
+        balloons2.append(Balloon(x=center_x - i*30, y=center_y, tier=2, speed=BALLOON_SPEED))
+        balloons2.append(Balloon(x=center_x + i*30, y=center_y, tier=2, speed=BALLOON_SPEED))
+    
+    delayed.append((7.0, balloons2))
+    
+    # Wave 3: Green/Yellow checkerboard (14s)
+    balloons3 = []
+    for row in range(8):
+        for col in range(10):
+            x = 120 + col * 55
+            y = -80 - row * 55
+            tier = 2 if (row + col) % 2 == 0 else 1  # Alternate green/yellow
+            balloons3.append(Balloon(x=x, y=y, tier=tier, speed=BALLOON_SPEED))
+    
+    delayed.append((14.0, balloons3))
+    
+    # Wave 4: Green starburst with yellow center (21s)
+    balloons4 = []
+    center_x = SCREEN_WIDTH / 2
+    center_y = -250
+    
+    # Center cluster
+    for i in range(8):
+        angle = i * (2 * math.pi / 8)
+        for dist in [0, 40, 80]:
+            x = center_x + math.cos(angle) * dist
+            y = center_y + math.sin(angle) * dist
+            tier = 1 if dist == 0 else 2
+            balloons4.append(Balloon(x=x, y=y, tier=tier, speed=BALLOON_SPEED))
+    
+    delayed.append((21.0, balloons4))
+    
+    return delayed
+
+
 def get_total_balloons() -> int:
-    return 225
+    return 40 + 32 + 80 + 24  # 176

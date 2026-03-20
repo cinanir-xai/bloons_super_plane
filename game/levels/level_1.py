@@ -1,48 +1,93 @@
-"""Level 1 - Red Balloons (15x15 grid)."""
+"""Level 1 - Red and Blue Balloons with Creative Patterns."""
 
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from typing import List
-from ..enemies import Balloon, get_balloon_radius
-from ..constants import SCREEN_WIDTH, COLOR_RED, BALLOON_SPEED
+from typing import List, Tuple
+import math
+from ..enemies import Balloon, get_balloon_radius, BALLOON_TYPE_NORMAL
+from ..constants import SCREEN_WIDTH, BALLOON_SPEED
 
 LEVEL_NUMBER = 1
-LEVEL_NAME = "Red Swarm"
-BALLOON_TIER = 4  # Red
+LEVEL_NAME = "Red & Blue"
+BALLOON_TIER = 4  # Red base tier
 
 def create_balloons() -> List[Balloon]:
-    """Create 15x15 grid of red balloons."""
+    """Create first wave: Red balloons in a circle pattern."""
     balloons = []
-    cols = 15
-    rows = 15
-    # Calculate spacing based on balloon radius with 80% reduced gap (almost touching)
-    balloon_radius = get_balloon_radius(BALLOON_TIER)
-    balloon_diameter = balloon_radius * 2
-    gap = balloon_diameter * 0.2  # 20% of diameter (80% reduction from original gap)
-    spacing_x = balloon_diameter + gap
+    balloon_radius = get_balloon_radius(4)  # Red tier
     
-    # Center the grid horizontally
-    grid_width = spacing_x * cols - gap  # Total width of all balloons and gaps
-    start_x = (SCREEN_WIDTH - grid_width) / 2 + balloon_radius
+    # Wave 1: Large circle of red balloons
+    center_x = SCREEN_WIDTH / 2
+    center_y = -150
+    radius = 200
+    num_balloons = 24
     
-    spacing_y = 50  # Vertical spacing between rows
+    for i in range(num_balloons):
+        angle = (i / num_balloons) * 2 * math.pi
+        x = center_x + math.cos(angle) * radius
+        y = center_y + math.sin(angle) * radius * 0.5  # Slightly flattened
+        
+        balloons.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED))
     
-    for row in range(rows):
-        for col in range(cols):
-            x = start_x + col * spacing_x
-            y = -100 - (row * spacing_y)  # Start above screen, staggered
-            
-            balloon = Balloon(
-                x=x,
-                y=y,
-                tier=BALLOON_TIER,
-                speed=BALLOON_SPEED
-            )
-            balloons.append(balloon)
+    # Inner circle
+    inner_radius = 100
+    for i in range(12):
+        angle = (i / 12) * 2 * math.pi
+        x = center_x + math.cos(angle) * inner_radius
+        y = center_y + math.sin(angle) * inner_radius * 0.5
+        
+        balloons.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED))
     
     return balloons
 
+
+def get_delayed_spawns() -> List[Tuple[float, List[Balloon]]]:
+    """Waves 2-4 with breathing room."""
+    delayed = []
+    
+    # Wave 2: Blue balloons in V formation (7s delay)
+    balloons2 = []
+    center_x = SCREEN_WIDTH / 2
+    start_y = -100
+    
+    for i in range(9):
+        offset = (i - 4) * 40
+        x = center_x + offset
+        y = start_y + abs(offset) * 0.5  # V shape
+        balloons2.append(Balloon(x=x, y=y, tier=3, speed=BALLOON_SPEED))  # Blue
+    
+    for i in range(7):
+        offset = (i - 3) * 40
+        x = center_x + offset
+        y = start_y + abs(offset) * 0.5 + 50
+        balloons2.append(Balloon(x=x, y=y, tier=3, speed=BALLOON_SPEED))  # Blue
+    
+    delayed.append((7.0, balloons2))
+    
+    # Wave 3: Red and Blue alternating lines (14s delay)
+    balloons3 = []
+    for row in range(6):
+        for col in range(12):
+            x = 80 + col * 45
+            y = -100 - row * 50
+            tier = 4 if (row + col) % 2 == 0 else 3  # Alternate red/blue
+            balloons3.append(Balloon(x=x, y=y, tier=tier, speed=BALLOON_SPEED))
+    
+    delayed.append((14.0, balloons3))
+    
+    # Wave 4: Final red star pattern (21s delay)
+    balloons4 = []
+    center_x = SCREEN_WIDTH / 2
+    center_y = -200
+    for arm in range(5):
+        angle = arm * (2 * math.pi / 5) - math.pi / 2
+        for dist in [0, 60, 120, 180]:
+            x = center_x + math.cos(angle) * dist
+            y = center_y + math.sin(angle) * dist
+            balloons4.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED))
+    
+    delayed.append((21.0, balloons4))
+    
+    return delayed
+
+
 def get_total_balloons() -> int:
-    return 225
+    return 36 + 16 + 72 + 20  # All waves: 144

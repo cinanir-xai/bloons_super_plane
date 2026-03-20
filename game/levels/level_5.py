@@ -1,44 +1,89 @@
-"""Level 5 - Pink Balloons (15x15 grid)."""
+"""Level 5 - Zebra Balloons (explosive + ice immune)."""
 
-from typing import List
-from game.enemies import Balloon, get_balloon_radius
-from game.constants import SCREEN_WIDTH, COLOR_PINK, BALLOON_SPEED
+from typing import List, Tuple
+import math
+from ..enemies import (
+    Balloon, get_balloon_radius,
+    BALLOON_TYPE_ZEBRA
+)
+from ..constants import SCREEN_WIDTH, BALLOON_SPEED
 
 LEVEL_NUMBER = 5
-LEVEL_NAME = "Pink Finale"
-BALLOON_TIER = 0  # Pink (largest)
+LEVEL_NAME = "Zebra Zone"
+BALLOON_TIER = 4  # Base tier
 
 def create_balloons() -> List[Balloon]:
-    """Create 15x15 grid of pink balloons."""
+    """Wave 1: Zebra balloons in wave pattern."""
     balloons = []
-    cols = 15
-    rows = 15
-    # Calculate spacing based on balloon radius with 80% reduced gap (almost touching)
-    balloon_radius = get_balloon_radius(BALLOON_TIER)
-    balloon_diameter = balloon_radius * 2
-    gap = balloon_diameter * 0.2  # 20% of diameter (80% reduction from original gap)
-    spacing_x = balloon_diameter + gap
     
-    # Center the grid horizontally
-    grid_width = spacing_x * cols - gap
-    start_x = (SCREEN_WIDTH - grid_width) / 2 + balloon_radius
+    # Zebra balloons in sinusoidal wave
+    center_y = -150
+    for i in range(30):
+        x = 80 + i * 35
+        y = center_y + math.sin(i * 0.3) * 60
+        
+        balloons.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_ZEBRA))
     
-    spacing_y = 50
-    
-    for row in range(rows):
-        for col in range(cols):
-            x = start_x + col * spacing_x
-            y = -100 - (row * spacing_y)
-            
-            balloon = Balloon(
-                x=x,
-                y=y,
-                tier=BALLOON_TIER,
-                speed=BALLOON_SPEED
-            )
-            balloons.append(balloon)
+    # Second wave row
+    center_y = -280
+    for i in range(25):
+        x = 120 + i * 35
+        y = center_y + math.cos(i * 0.35) * 50
+        
+        balloons.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_ZEBRA))
     
     return balloons
 
+
+def get_delayed_spawns() -> List[Tuple[float, List[Balloon]]]:
+    """Waves 2-4 with 9s breathing room."""
+    delayed = []
+    
+    # Wave 2: Zebra grid (9s)
+    balloons2 = []
+    for row in range(6):
+        for col in range(10):
+            x = 100 + col * 60
+            y = -80 - row * 60
+            
+            balloons2.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_ZEBRA))
+    
+    delayed.append((9.0, balloons2))
+    
+    # Wave 3: Zebra circles (18s)
+    balloons3 = []
+    center_x = SCREEN_WIDTH / 2
+    center_y = -200
+    
+    for ring in range(4):
+        count = 10 + ring * 8
+        for i in range(count):
+            angle = (i / count) * 2 * math.pi
+            radius = 60 + ring * 55
+            x = center_x + math.cos(angle) * radius
+            y = center_y + math.sin(angle) * radius * 0.5
+            
+            balloons3.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_ZEBRA))
+    
+    delayed.append((18.0, balloons3))
+    
+    # Wave 4: Zebra starburst (27s)
+    balloons4 = []
+    center_x = SCREEN_WIDTH / 2
+    center_y = -300
+    
+    for arm in range(8):
+        angle = arm * (2 * math.pi / 8)
+        for dist in [0, 70, 140, 210]:
+            x = center_x + math.cos(angle) * dist
+            y = center_y + math.sin(angle) * dist
+            
+            balloons4.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_ZEBRA))
+    
+    delayed.append((27.0, balloons4))
+    
+    return delayed
+
+
 def get_total_balloons() -> int:
-    return 225
+    return 55 + 60 + 72 + 32  # 219
