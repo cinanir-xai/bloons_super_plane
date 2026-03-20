@@ -28,6 +28,7 @@ BALLOON_TYPE_LEAD = "lead"        # Immune to physical (darts, boomerang, wingma
 BALLOON_TYPE_ZEBRA = "zebra"      # Immune to explosive AND ice
 BALLOON_TYPE_RAINBOW = "rainbow"  # No immunities
 BALLOON_TYPE_CERAMIC = "ceramic"  # 10 HP, spawns 2 rainbow
+BALLOON_TYPE_MOAB = "moab"        # Boss: 200 HP, spawns 4 ceramic
 
 # Special balloon colors (BTD-style)
 COLOR_BLACK_BALLOON = (30, 30, 30)
@@ -35,6 +36,13 @@ COLOR_WHITE_BALLOON = (245, 245, 245)
 COLOR_LEAD_BALLOON = (100, 100, 110)
 COLOR_ZEBRA_BALLOON = (240, 240, 240)  # Base white with black stripes
 COLOR_CERAMIC_BALLOON = (180, 140, 100)  # Tan/brown ceramic
+
+# MOAB colors (light blue zeppelin)
+COLOR_MOAB_BODY = (120, 180, 220)      # Light blue
+COLOR_MOAB_DARK = (80, 130, 180)       # Darker blue for shading
+COLOR_MOAB_HIGHLIGHT = (180, 220, 250) # Bright highlight
+COLOR_MOAB_FIN = (70, 120, 170)        # Fin/rudder color
+COLOR_MOAB_DAMAGED = (150, 100, 80)    # Burn/damage marks
 
 # Rainbow colors for rainbow balloon
 RAINBOW_COLORS = [
@@ -57,6 +65,12 @@ SIZE_TIER_BLACK_WHITE = 5
 SIZE_TIER_LEAD_ZEBRA = 6
 SIZE_TIER_RAINBOW = 7
 SIZE_TIER_CERAMIC = 8
+
+# MOAB dimensions (large zeppelin - approximately 6 ceramic balloons in size)
+MOAB_WIDTH = 180   # Width of the zeppelin body
+MOAB_HEIGHT = 100  # Height of the zeppelin body
+MOAB_HP = 200      # Total HP
+MOAB_DAMAGE_STAGES = 4  # Visual damage at 50 HP intervals
 
 def get_balloon_radius(tier: int) -> float:
     """Calculate radius for a tier. Red (4) is base, each tier up +5%."""
@@ -99,13 +113,23 @@ class Balloon:
     has_entered_screen: bool = False
     # Special balloon type (BTD-inspired)
     balloon_type: str = BALLOON_TYPE_NORMAL
-    # HP for ceramic balloons
+    # HP for ceramic/MOAB balloons
     hp: int = 1
     max_hp: int = 1
+    # Dimensions for rectangular balloons (MOAB)
+    width: float = 0.0
+    height: float = 0.0
 
     def __post_init__(self):
-        # Set radius based on balloon type
-        if self.balloon_type == BALLOON_TYPE_NORMAL:
+        # Set dimensions based on balloon type
+        if self.balloon_type == BALLOON_TYPE_MOAB:
+            # MOAB is rectangular
+            self.width = MOAB_WIDTH
+            self.height = MOAB_HEIGHT
+            self.radius = max(self.width, self.height) / 2  # For collision detection
+            self.hp = MOAB_HP
+            self.max_hp = MOAB_HP
+        elif self.balloon_type == BALLOON_TYPE_NORMAL:
             self.radius = get_balloon_radius(self.tier)
         else:
             self.radius = get_balloon_radius_by_type(self.balloon_type)
@@ -141,6 +165,8 @@ class Balloon:
             return RAINBOW_COLORS[0]  # Default to red for rainbow
         elif self.balloon_type == BALLOON_TYPE_CERAMIC:
             return COLOR_CERAMIC_BALLOON
+        elif self.balloon_type == BALLOON_TYPE_MOAB:
+            return COLOR_MOAB_BODY
         elif 0 <= self.tier < len(BALLOON_COLORS):
             return BALLOON_COLORS[self.tier]
         return COLOR_PINK
@@ -194,6 +220,14 @@ class Balloon:
 
     def take_damage(self) -> bool:
         """Take damage and downgrade. Returns True if should be removed."""
+        # MOAB balloons have 200 HP
+        if self.balloon_type == BALLOON_TYPE_MOAB:
+            self.hp -= 1
+            if self.hp <= 0:
+                self.popped = True
+                return True
+            return False
+
         # Ceramic balloons have HP
         if self.balloon_type == BALLOON_TYPE_CERAMIC:
             self.hp -= 1
@@ -212,14 +246,15 @@ class Balloon:
         return False
 
     def spawn_children_on_pop(self, balloon_manager) -> None:
-        """Spawn child balloons when this balloon is fully popped."""
+        """Spawn child balloons when this balloon is fully popped with random offsets."""
         if self.balloon_type == BALLOON_TYPE_BLACK or self.balloon_type == BALLOON_TYPE_WHITE:
             # Spawn 2 pink balloons
             for i in range(2):
-                offset = -25 + i * 50
+                offset_x = -30 + i * 60 + random.uniform(-10, 10)
+                offset_y = random.uniform(-15, 15)
                 child = Balloon(
-                    x=self.x + offset,
-                    y=self.y,
+                    x=self.x + offset_x,
+                    y=self.y + offset_y,
                     tier=0,
                     speed=self.speed,
                     speed_multiplier=self.speed_multiplier,
@@ -231,10 +266,11 @@ class Balloon:
         elif self.balloon_type == BALLOON_TYPE_LEAD:
             # Spawn 2 black balloons
             for i in range(2):
-                offset = -25 + i * 50
+                offset_x = -30 + i * 60 + random.uniform(-10, 10)
+                offset_y = random.uniform(-15, 15)
                 child = Balloon(
-                    x=self.x + offset,
-                    y=self.y,
+                    x=self.x + offset_x,
+                    y=self.y + offset_y,
                     tier=4,
                     speed=self.speed,
                     speed_multiplier=self.speed_multiplier,
@@ -246,10 +282,11 @@ class Balloon:
         elif self.balloon_type == BALLOON_TYPE_ZEBRA:
             # Spawn 1 white + 1 black balloon
             for i, btype in enumerate([BALLOON_TYPE_WHITE, BALLOON_TYPE_BLACK]):
-                offset = -25 + i * 50
+                offset_x = -30 + i * 60 + random.uniform(-10, 10)
+                offset_y = random.uniform(-15, 15)
                 child = Balloon(
-                    x=self.x + offset,
-                    y=self.y,
+                    x=self.x + offset_x,
+                    y=self.y + offset_y,
                     tier=4,
                     speed=self.speed,
                     speed_multiplier=self.speed_multiplier,
@@ -261,10 +298,11 @@ class Balloon:
         elif self.balloon_type == BALLOON_TYPE_RAINBOW:
             # Spawn 2 zebra balloons
             for i in range(2):
-                offset = -25 + i * 50
+                offset_x = -30 + i * 60 + random.uniform(-10, 10)
+                offset_y = random.uniform(-15, 15)
                 child = Balloon(
-                    x=self.x + offset,
-                    y=self.y,
+                    x=self.x + offset_x,
+                    y=self.y + offset_y,
                     tier=4,
                     speed=self.speed,
                     speed_multiplier=self.speed_multiplier,
@@ -276,16 +314,36 @@ class Balloon:
         elif self.balloon_type == BALLOON_TYPE_CERAMIC:
             # Spawn 2 rainbow balloons
             for i in range(2):
-                offset = -25 + i * 50
+                offset_x = -30 + i * 60 + random.uniform(-10, 10)
+                offset_y = random.uniform(-15, 15)
                 child = Balloon(
-                    x=self.x + offset,
-                    y=self.y,
+                    x=self.x + offset_x,
+                    y=self.y + offset_y,
                     tier=4,
                     speed=self.speed,
                     speed_multiplier=self.speed_multiplier,
                     pattern=self.pattern,
                     pattern_data=dict(self.pattern_data) if self.pattern_data else {},
                     balloon_type=BALLOON_TYPE_RAINBOW,
+                )
+                balloon_manager.balloons.append(child)
+        elif self.balloon_type == BALLOON_TYPE_MOAB:
+            # Spawn 4 ceramic balloons in a spread pattern
+            positions = [
+                (-50, -30), (-50, 30), (50, -30), (50, 30)
+            ]
+            for i, (ox, oy) in enumerate(positions):
+                offset_x = ox + random.uniform(-20, 20)
+                offset_y = oy + random.uniform(-20, 20)
+                child = Balloon(
+                    x=self.x + offset_x,
+                    y=self.y + offset_y,
+                    tier=4,
+                    speed=self.speed,
+                    speed_multiplier=self.speed_multiplier,
+                    pattern=self.pattern,
+                    pattern_data=dict(self.pattern_data) if self.pattern_data else {},
+                    balloon_type=BALLOON_TYPE_CERAMIC,
                 )
                 balloon_manager.balloons.append(child)
 
@@ -365,6 +423,12 @@ class Balloon:
             return
         
         cx, cy = int(self.x), int(self.y)
+        
+        # MOAB is drawn differently (rectangular zeppelin)
+        if self.balloon_type == BALLOON_TYPE_MOAB:
+            self._draw_moab(surface, cx, cy)
+            return
+        
         r = int(self.radius)
         
         # Draw shadow beneath balloon
@@ -767,6 +831,263 @@ class Balloon:
         pygame.draw.line(surface, (100, 80, 60), string_start, string_end, 2)
         pygame.draw.circle(surface, (100, 80, 60), (cx, cy + r + 2), 2)
 
+    def _draw_moab(self, surface: pygame.Surface, cx: int, cy: int) -> None:
+        """Draw the MOAB zeppelin with damage stages (BTD-style)."""
+        # MOAB dimensions
+        w = int(self.width)
+        h = int(self.height)
+        half_w = w // 2
+        half_h = h // 2
+        
+        # Calculate damage stage (0-3, where 3 is most damaged)
+        hp_percent = self.hp / self.max_hp
+        damage_stage = 0
+        if self.hp <= 50:
+            damage_stage = 3
+        elif self.hp <= 100:
+            damage_stage = 2
+        elif self.hp <= 150:
+            damage_stage = 1
+        
+        # Draw large shadow beneath MOAB
+        shadow_surface = pygame.Surface((w + 40, h // 2 + 20), pygame.SRCALPHA)
+        pygame.draw.ellipse(shadow_surface, (0, 0, 0, 50), (20, 10, w, h // 2))
+        surface.blit(shadow_surface, (cx - half_w - 20, cy + half_h - 5))
+        
+        # === MAIN BODY (bulbous zeppelin shape) ===
+        # Draw the main zeppelin body using overlapping ellipses for bulbous effect
+        
+        # Bottom dark shading
+        body_dark = (COLOR_MOAB_DARK[0] - 20, COLOR_MOAB_DARK[1] - 20, COLOR_MOAB_DARK[2] - 20)
+        pygame.draw.ellipse(surface, body_dark, 
+                           (cx - half_w, cy - half_h + 10, w, h - 5))
+        
+        # Main body
+        pygame.draw.ellipse(surface, COLOR_MOAB_BODY, 
+                           (cx - half_w, cy - half_h, w, h))
+        
+        # Top highlight (lighter blue strip)
+        highlight_rect = pygame.Rect(cx - half_w + 15, cy - half_h + 8, w - 30, h // 3)
+        pygame.draw.ellipse(surface, COLOR_MOAB_HIGHLIGHT, highlight_rect)
+        
+        # === BODY DETAILS ===
+        # Horizontal panel lines (like a real zeppelin)
+        panel_color = (COLOR_MOAB_DARK[0] + 10, COLOR_MOAB_DARK[1] + 10, COLOR_MOAB_DARK[2] + 10)
+        for i in range(5):
+            y_off = cy - half_h + 20 + i * (h - 40) // 4
+            # Calculate width at this y position (ellipse)
+            t = (y_off - (cy - half_h + 20)) / (h - 40)
+            panel_width = int((w - 30) * math.sqrt(max(0, 1 - (2 * t - 1) ** 2)) / 2)
+            if panel_width > 10:
+                pygame.draw.line(surface, panel_color,
+                               (cx - panel_width, y_off),
+                               (cx + panel_width, y_off), 1)
+        
+        # Vertical ribs for bulbous effect
+        rib_color = (COLOR_MOAB_DARK[0] + 5, COLOR_MOAB_DARK[1] + 5, COLOR_MOAB_DARK[2] + 5)
+        for i in range(-3, 4):
+            if i == 0:
+                continue
+            x_base = cx + i * (w // 8)
+            # Draw curved rib line
+            points = []
+            for j in range(20):
+                t = j / 19
+                y_pos = cy - half_h + 10 + t * (h - 20)
+                # Calculate x offset based on ellipse shape
+                y_norm = (t - 0.5) * 2  # -1 to 1
+                x_offset = int((half_h - 10) * math.sqrt(max(0, 1 - y_norm ** 2)) * 0.3)
+                points.append((x_base, y_pos))
+            if len(points) > 1:
+                pygame.draw.lines(surface, rib_color, False, points, 1)
+        
+        # === FRONT SECTION (rounded nose) ===
+        # Nose cone (front of zeppelin)
+        nose_points = []
+        for i in range(20):
+            angle = math.pi / 2 + (i / 19) * math.pi  # Top to bottom
+            x = cx - half_w + 5 + int(math.cos(angle) * 15)
+            y = cy + int(math.sin(angle) * (half_h - 5))
+            nose_points.append((x, y))
+        # Add front point
+        nose_points.insert(0, (cx - half_w - 10, cy))
+        if len(nose_points) >= 3:
+            pygame.draw.polygon(surface, COLOR_MOAB_BODY, nose_points)
+            pygame.draw.polygon(surface, COLOR_MOAB_DARK, nose_points, 2)
+        
+        # === REAR FINS (triple tail fins like BTD MOAB) ===
+        # Top fin
+        fin_top = [
+            (cx + half_w - 25, cy - half_h + 15),
+            (cx + half_w + 15, cy - half_h - 25),
+            (cx + half_w + 30, cy - half_h - 20),
+            (cx + half_w + 20, cy - half_h + 5),
+            (cx + half_w - 15, cy - half_h + 20),
+        ]
+        pygame.draw.polygon(surface, COLOR_MOAB_FIN, fin_top)
+        pygame.draw.polygon(surface, COLOR_MOAB_DARK, fin_top, 2)
+        
+        # Bottom fin
+        fin_bottom = [
+            (cx + half_w - 25, cy + half_h - 15),
+            (cx + half_w + 15, cy + half_h + 25),
+            (cx + half_w + 30, cy + half_h + 20),
+            (cx + half_w + 20, cy + half_h - 5),
+            (cx + half_w - 15, cy + half_h - 20),
+        ]
+        pygame.draw.polygon(surface, COLOR_MOAB_FIN, fin_bottom)
+        pygame.draw.polygon(surface, COLOR_MOAB_DARK, fin_bottom, 2)
+        
+        # Center rear fin
+        fin_center = [
+            (cx + half_w - 20, cy),
+            (cx + half_w + 25, cy - 15),
+            (cx + half_w + 40, cy),
+            (cx + half_w + 25, cy + 15),
+        ]
+        pygame.draw.polygon(surface, COLOR_MOAB_FIN, fin_center)
+        pygame.draw.polygon(surface, COLOR_MOAB_DARK, fin_center, 2)
+        
+        # === COCKPIT/GONDOLA (underneath) ===
+        gondola_points = [
+            (cx - 30, cy + half_h - 5),
+            (cx - 40, cy + half_h + 20),
+            (cx + 40, cy + half_h + 20),
+            (cx + 30, cy + half_h - 5),
+        ]
+        pygame.draw.polygon(surface, COLOR_MOAB_DARK, gondola_points)
+        pygame.draw.polygon(surface, (50, 80, 110), gondola_points, 2)
+        
+        # Gondola windows
+        for i in range(3):
+            wx = cx - 20 + i * 20
+            pygame.draw.rect(surface, (60, 100, 140), (wx, cy + half_h + 5, 12, 8))
+            pygame.draw.rect(surface, (100, 150, 200), (wx + 1, cy + half_h + 6, 10, 6), 1)
+        
+        # === PROPULSION ENGINES (on sides) ===
+        # Left engine
+        engine_l = [(cx - half_w + 10, cy + 10),
+                    (cx - half_w - 15, cy + 5),
+                    (cx - half_w - 15, cy + 20),
+                    (cx - half_w + 10, cy + 15)]
+        pygame.draw.polygon(surface, COLOR_MOAB_DARK, engine_l)
+        pygame.draw.polygon(surface, (50, 80, 110), engine_l, 2)
+        # Engine glow
+        pygame.draw.circle(surface, (200, 220, 255), (cx - half_w - 12, cy + 12), 4)
+        
+        # Right engine
+        engine_r = [(cx + half_w - 10, cy + 10),
+                    (cx + half_w + 15, cy + 5),
+                    (cx + half_w + 15, cy + 20),
+                    (cx + half_w - 10, cy + 15)]
+        pygame.draw.polygon(surface, COLOR_MOAB_DARK, engine_r)
+        pygame.draw.polygon(surface, (50, 80, 110), engine_r, 2)
+        # Engine glow
+        pygame.draw.circle(surface, (200, 220, 255), (cx + half_w + 12, cy + 12), 4)
+        
+        # === WHITE DETAIL STRIPES ===
+        # Central white stripe along body
+        stripe_points = []
+        for i in range(30):
+            t = i / 29
+            x = cx - half_w + 20 + t * (w - 40)
+            y_norm = (t - 0.5) * 2
+            y_off = cy + int(y_norm * 3 * (1 - abs(y_norm)))
+            stripe_points.append((x, y_off))
+        if len(stripe_points) > 1:
+            pygame.draw.lines(surface, (240, 250, 255), False, stripe_points, 3)
+        
+        # === DAMAGE VISUALIZATION ===
+        if damage_stage >= 1:
+            # Stage 1: Small scorch marks and dents
+            burn_positions = [(cx - 40, cy - 15), (cx + 30, cy + 10), (cx - 10, cy + 20)]
+            for bx, by in burn_positions:
+                pygame.draw.circle(surface, COLOR_MOAB_DAMAGED, (bx, by), 8)
+                pygame.draw.circle(surface, (100, 70, 50), (bx, by), 5)
+        
+        if damage_stage >= 2:
+            # Stage 2: Larger burns, cracks, exposed metal
+            burn_positions2 = [(cx - 50, cy), (cx + 50, cy - 10), (cx, cy - 25)]
+            for bx, by in burn_positions2:
+                pygame.draw.circle(surface, (80, 50, 30), (bx, by), 12)
+                pygame.draw.circle(surface, COLOR_MOAB_DAMAGED, (bx, by), 9)
+            
+            # Crack lines
+            crack_color = (60, 40, 25)
+            pygame.draw.line(surface, crack_color, (cx - 30, cy - 20), (cx - 45, cy + 5), 2)
+            pygame.draw.line(surface, crack_color, (cx - 45, cy + 5), (cx - 35, cy + 15), 2)
+            pygame.draw.line(surface, crack_color, (cx + 40, cy - 5), (cx + 55, cy + 10), 2)
+        
+        if damage_stage >= 3:
+            # Stage 3: Heavy damage, holes, smoke marks
+            # Large burn holes
+            for bx, by in [(cx - 30, cy), (cx + 40, cy - 5), (cx, cy + 15)]:
+                pygame.draw.circle(surface, (40, 30, 20), (bx, by), 18)
+                pygame.draw.circle(surface, (60, 45, 30), (bx, by), 14)
+                pygame.draw.circle(surface, (30, 25, 15), (bx, by), 8)
+            
+            # Heavy cracks across body
+            crack_color = (50, 35, 20)
+            pygame.draw.line(surface, crack_color, (cx - 60, cy - 10), (cx + 60, cy + 5), 3)
+            pygame.draw.line(surface, crack_color, (cx, cy - 35), (cx - 20, cy + 30), 3)
+            pygame.draw.line(surface, crack_color, (cx + 20, cy - 30), (cx + 50, cy + 20), 2)
+            
+            # Smoke wisps (static)
+            for i in range(5):
+                sx = cx + random.randint(-50, 50)
+                sy = cy + random.randint(-30, 30)
+                pygame.draw.circle(surface, (80, 80, 80), (sx, sy), random.randint(3, 8))
+        
+        # === MOAB TEXT ===
+        # Draw "MOAB" text on the body
+        font_size = 20
+        try:
+            font = pygame.font.Font(None, font_size)
+            text = font.render("MOAB", True, (255, 255, 255))
+            text_rect = text.get_rect(center=(cx, cy - 5))
+            # Text shadow
+            shadow_text = font.render("MOAB", True, (50, 80, 120))
+            shadow_rect = shadow_text.get_rect(center=(cx + 1, cy - 4))
+            surface.blit(shadow_text, shadow_rect)
+            surface.blit(text, text_rect)
+        except:
+            pass
+        
+        # === HP BAR ===
+        # Draw HP bar below the MOAB
+        bar_width = w - 40
+        bar_height = 8
+        bar_x = cx - bar_width // 2
+        bar_y = cy + half_h + 35
+        
+        # Background
+        pygame.draw.rect(surface, (40, 40, 50), (bar_x - 2, bar_y - 2, bar_width + 4, bar_height + 4))
+        pygame.draw.rect(surface, (60, 60, 70), (bar_x, bar_y, bar_width, bar_height))
+        
+        # HP fill (color changes with damage)
+        if hp_percent > 0.5:
+            hp_color = (80, 200, 80)  # Green
+        elif hp_percent > 0.25:
+            hp_color = (220, 180, 50)  # Yellow
+        else:
+            hp_color = (220, 80, 80)  # Red
+        
+        hp_width = int(bar_width * hp_percent)
+        if hp_width > 0:
+            pygame.draw.rect(surface, hp_color, (bar_x, bar_y, hp_width, bar_height))
+        
+        # HP bar border
+        pygame.draw.rect(surface, (100, 100, 110), (bar_x - 2, bar_y - 2, bar_width + 4, bar_height + 4), 2)
+        
+        # HP text
+        try:
+            hp_font = pygame.font.Font(None, 16)
+            hp_text = hp_font.render(f"{self.hp}/{self.max_hp}", True, (255, 255, 255))
+            hp_text_rect = hp_text.get_rect(center=(cx, bar_y + bar_height + 10))
+            surface.blit(hp_text, hp_text_rect)
+        except:
+            pass
+
     def _draw_pop_animation(self, surface: pygame.Surface) -> None:
         """Draw popping animation."""
         progress = self.pop_animation / 15
@@ -786,6 +1107,10 @@ class Balloon:
 
     def get_rect(self) -> pygame.Rect:
         """Get collision rect."""
+        if self.balloon_type == BALLOON_TYPE_MOAB:
+            # MOAB uses rectangular hitbox
+            return pygame.Rect(self.x - self.width / 2, self.y - self.height / 2,
+                              self.width, self.height)
         return pygame.Rect(self.x - self.radius, self.y - self.radius,
                           self.radius * 2, self.radius * 2)
 

@@ -275,12 +275,18 @@ class Game:
         # Update balloons
         self.balloon_manager.update(dt)
         
+        # Check for delayed balloon spawns
+        pending_balloons = self.level_manager.get_pending_spawns()
+        if pending_balloons:
+            self.balloon_manager.balloons.extend(pending_balloons)
+        
         # Update orbs with magnet effect towards player
         self.orb_manager.update(dt, self.player.x, self.player.y)
         
         # Check dart collisions with balloons
         darts = self.player.dart_manager.get_darts()
         if darts:
+            from .enemies import BALLOON_TYPE_MOAB
             balloon_candidates = [b for b in self.balloon_manager.balloons if not b.popped]
             self._collision_checked.clear()
             for dart in darts[:]:
@@ -290,8 +296,8 @@ class Game:
                         continue
                     self._collision_checked.add(pair_key)
                     if self._check_collision(dart, balloon):
-                        # Check if balloon will be fully popped (red tier = 4)
-                        will_pop = balloon.tier >= 4  # Red is tier 4, pink=0
+                        # Check if balloon will be fully popped (red tier = 4 or MOAB)
+                        will_pop = balloon.tier >= 4 or balloon.balloon_type == BALLOON_TYPE_MOAB
                         
                         # Pop balloon with subtle screen shake (10% of original)
                         self.balloon_manager.pop_balloon(balloon, dart.x, dart.y, damage_type="physical")
@@ -307,10 +313,20 @@ class Game:
         # Check laser collisions
         if self.player.has_laser and self.player.laser and self.player.laser.active:
             from .constants import LASER_POP_DELAY
+            from .enemies import BALLOON_TYPE_MOAB
             laser = self.player.laser
             active_balloons = [b for b in self.balloon_manager.balloons if not b.popped]
             for balloon in active_balloons:
-                if abs(balloon.x - laser.x) < balloon.radius + 5 and balloon.y < laser.y_start:
+                # Check collision with laser beam
+                laser_hits = False
+                if balloon.balloon_type == BALLOON_TYPE_MOAB:
+                    # MOAB rectangular collision
+                    rect = balloon.get_rect()
+                    laser_hits = rect.left <= laser.x <= rect.right and balloon.y < laser.y_start
+                else:
+                    laser_hits = abs(balloon.x - laser.x) < balloon.radius + 5 and balloon.y < laser.y_start
+                
+                if laser_hits:
                     b_id = id(balloon)
                     laser.pop_timers[b_id] = laser.pop_timers.get(b_id, 0) + dt * 1000
                     
@@ -318,7 +334,7 @@ class Game:
                     laser.emit_hit_particles(self.screen, balloon.y)
                     
                     if laser.pop_timers[b_id] >= LASER_POP_DELAY:
-                        will_pop = balloon.tier >= 4
+                        will_pop = balloon.tier >= 4 or balloon.balloon_type == BALLOON_TYPE_MOAB
                         self.balloon_manager.pop_balloon(balloon, balloon.x, balloon.y, damage_type="magic")
                         if will_pop:
                             self.level_manager.balloon_popped()
@@ -326,14 +342,23 @@ class Game:
         
         # Check missile collisions
         if self.player.has_missile:
+            from .enemies import BALLOON_TYPE_MOAB
             missile_manager = self.player.missile_manager
             active_balloons = [b for b in self.balloon_manager.balloons if not b.popped]
             for missile in missile_manager.missiles[:]:
                 for balloon in active_balloons:
-                    dx = missile.x - balloon.x
-                    dy = missile.y - balloon.y
-                    dist = (dx * dx + dy * dy) ** 0.5
-                    if dist < balloon.radius + 10:
+                    # Check collision with missile
+                    missile_hits = False
+                    if balloon.balloon_type == BALLOON_TYPE_MOAB:
+                        rect = balloon.get_rect()
+                        missile_hits = rect.collidepoint(missile.x, missile.y)
+                    else:
+                        dx = missile.x - balloon.x
+                        dy = missile.y - balloon.y
+                        dist = (dx * dx + dy * dy) ** 0.5
+                        missile_hits = dist < balloon.radius + 10
+                    
+                    if missile_hits:
                         # Explode!
                         missile_manager.trigger_explosion(missile.x, missile.y, missile.aoe_radius)
                         
@@ -342,8 +367,14 @@ class Game:
                             bdx = missile.x - b.x
                             bdy = missile.y - b.y
                             bdist = (bdx * bdx + bdy * bdy) ** 0.5
-                            if bdist < missile.aoe_radius:
-                                will_pop = b.tier >= 4
+                            # For MOAB, check if explosion center is within aoe_radius + half of MOAB size
+                            if b.balloon_type == BALLOON_TYPE_MOAB:
+                                in_aoe = bdist < missile.aoe_radius + max(b.width, b.height) / 2
+                            else:
+                                in_aoe = bdist < missile.aoe_radius
+                            
+                            if in_aoe:
+                                will_pop = b.tier >= 4 or b.balloon_type == BALLOON_TYPE_MOAB
                                 self.balloon_manager.pop_balloon(b, b.x, b.y, damage_type="explosive")
                                 if will_pop:
                                     self.level_manager.balloon_popped()
@@ -354,16 +385,25 @@ class Game:
         
         # Check boomerang collisions
         if self.player.has_boomerang:
+            from .enemies import BALLOON_TYPE_MOAB
             bm = self.player.boomerang_manager
             active_balloons = [b for b in self.balloon_manager.balloons if not b.popped]
             for boomerang in bm.boomerangs:
                 for balloon in active_balloons:
-                    dx = boomerang.x - balloon.x
-                    dy = boomerang.y - balloon.y
-                    dist = (dx * dx + dy * dy) ** 0.5
-                    if dist < balloon.radius + 15:
+                    # Check collision with boomerang
+                    boomerang_hits = False
+                    if balloon.balloon_type == BALLOON_TYPE_MOAB:
+                        rect = balloon.get_rect()
+                        boomerang_hits = rect.collidepoint(boomerang.x, boomerang.y)
+                    else:
+                        dx = boomerang.x - balloon.x
+                        dy = boomerang.y - balloon.y
+                        dist = (dx * dx + dy * dy) ** 0.5
+                        boomerang_hits = dist < balloon.radius + 15
+                    
+                    if boomerang_hits:
                         # Damage balloon (physical)
-                        will_pop = balloon.tier >= 4
+                        will_pop = balloon.tier >= 4 or balloon.balloon_type == BALLOON_TYPE_MOAB
                         self.balloon_manager.pop_balloon(balloon, balloon.x, balloon.y, damage_type="physical")
                         if will_pop:
                             self.level_manager.balloon_popped()
@@ -442,9 +482,17 @@ class Game:
     def _check_collision(self, dart, balloon) -> bool:
         """Check if dart collides with balloon."""
         from .projectiles import Dart
+        from .enemies import BALLOON_TYPE_MOAB
         if isinstance(dart, Dart) and isinstance(balloon, Balloon):
             if balloon.popped:
                 return False
+            
+            # MOAB uses rectangular collision
+            if balloon.balloon_type == BALLOON_TYPE_MOAB:
+                rect = balloon.get_rect()
+                return rect.collidepoint(dart.x, dart.y)
+            
+            # Regular circular collision
             dx = dart.x - balloon.x
             dy = dart.y - balloon.y
             dist = (dx * dx + dy * dy) ** 0.5
@@ -468,12 +516,13 @@ class Game:
 
     def _trigger_lightning_strike(self, target: Balloon) -> None:
         """Trigger lightning strike on target and arc to nearby balloons."""
+        from .enemies import BALLOON_TYPE_MOAB
         manager = self.player.lightning_manager
         arc_count = manager.get_arc_count()
 
         # Primary strike (magic damage)
         manager.trigger_strike((self.player.x, self.player.y - self.player.height // 2), (target.x, target.y))
-        will_pop = target.tier >= 4
+        will_pop = target.tier >= 4 or target.balloon_type == BALLOON_TYPE_MOAB
         self.balloon_manager.pop_balloon(target, target.x, target.y, damage_type="magic")
         if will_pop:
             self.level_manager.balloon_popped()
@@ -491,7 +540,7 @@ class Game:
         candidates.sort(key=lambda item: item[0])
         for _, arc_target in candidates[:arc_count]:
             manager.trigger_strike((target.x, target.y), (arc_target.x, arc_target.y), apply_cooldown=False)
-            arc_pop = arc_target.tier >= 4
+            arc_pop = arc_target.tier >= 4 or arc_target.balloon_type == BALLOON_TYPE_MOAB
             self.balloon_manager.pop_balloon(arc_target, arc_target.x, arc_target.y, damage_type="magic")
             if arc_pop:
                 self.level_manager.balloon_popped()
@@ -557,6 +606,8 @@ class Game:
             self.balloon_manager.draw(temp_surface)
             self.player.draw(temp_surface)
             self.vignette.draw(temp_surface)
+            # Draw delay countdown if applicable
+            self._draw_delay_countdown(temp_surface)
             self.screen.blit(temp_surface, shake_offset)
         else:
             self.background.draw(self.screen)
@@ -564,6 +615,25 @@ class Game:
             self.balloon_manager.draw(self.screen)
             self.player.draw(self.screen)
             self.vignette.draw(self.screen)
+            # Draw delay countdown if applicable
+            self._draw_delay_countdown(self.screen)
+
+    def _draw_delay_countdown(self, surface: pygame.Surface) -> None:
+        """Draw countdown timer for delayed balloon spawns."""
+        delay_remaining = self.level_manager.get_delay_remaining()
+        if delay_remaining > 0:
+            # Draw warning banner at top of screen
+            font = pygame.font.Font(None, 36)
+            text = f"Reinforcements arriving in {delay_remaining:.1f}s"
+            text_surface = font.render(text, True, (255, 220, 100))
+            text_rect = text_surface.get_rect(center=(SCREEN_WIDTH // 2, 30))
+            
+            # Draw background box
+            bg_rect = text_rect.inflate(20, 10)
+            pygame.draw.rect(surface, (40, 40, 60), bg_rect, border_radius=5)
+            pygame.draw.rect(surface, (100, 100, 140), bg_rect, 2, border_radius=5)
+            
+            surface.blit(text_surface, text_rect)
 
     def run(self) -> None:
         """Main game loop."""
