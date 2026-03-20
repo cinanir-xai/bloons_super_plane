@@ -294,7 +294,7 @@ class Game:
                         will_pop = balloon.tier >= 4  # Red is tier 4, pink=0
                         
                         # Pop balloon with subtle screen shake (10% of original)
-                        self.balloon_manager.pop_balloon(balloon, dart.x, dart.y)
+                        self.balloon_manager.pop_balloon(balloon, dart.x, dart.y, damage_type="physical")
                         self.screen_shake.trigger(intensity=0.8, duration=0.6)
                         self.player.dart_manager.remove_dart(dart)
                         
@@ -319,7 +319,7 @@ class Game:
                     
                     if laser.pop_timers[b_id] >= LASER_POP_DELAY:
                         will_pop = balloon.tier >= 4
-                        self.balloon_manager.pop_balloon(balloon, balloon.x, balloon.y)
+                        self.balloon_manager.pop_balloon(balloon, balloon.x, balloon.y, damage_type="magic")
                         if will_pop:
                             self.level_manager.balloon_popped()
                         laser.pop_timers[b_id] = 0
@@ -337,14 +337,14 @@ class Game:
                         # Explode!
                         missile_manager.trigger_explosion(missile.x, missile.y, missile.aoe_radius)
                         
-                        # AoE damage
+                        # AoE damage (explosive)
                         for b in active_balloons:
                             bdx = missile.x - b.x
                             bdy = missile.y - b.y
                             bdist = (bdx * bdx + bdy * bdy) ** 0.5
                             if bdist < missile.aoe_radius:
                                 will_pop = b.tier >= 4
-                                self.balloon_manager.pop_balloon(b, b.x, b.y)
+                                self.balloon_manager.pop_balloon(b, b.x, b.y, damage_type="explosive")
                                 if will_pop:
                                     self.level_manager.balloon_popped()
                         
@@ -362,9 +362,9 @@ class Game:
                     dy = boomerang.y - balloon.y
                     dist = (dx * dx + dy * dy) ** 0.5
                     if dist < balloon.radius + 15:
-                        # Damage balloon
+                        # Damage balloon (physical)
                         will_pop = balloon.tier >= 4
-                        self.balloon_manager.pop_balloon(balloon, balloon.x, balloon.y)
+                        self.balloon_manager.pop_balloon(balloon, balloon.x, balloon.y, damage_type="physical")
                         if will_pop:
                             self.level_manager.balloon_popped()
                         # Boomerang pierces, so no break here
@@ -471,10 +471,10 @@ class Game:
         manager = self.player.lightning_manager
         arc_count = manager.get_arc_count()
 
-        # Primary strike
+        # Primary strike (magic damage)
         manager.trigger_strike((self.player.x, self.player.y - self.player.height // 2), (target.x, target.y))
         will_pop = target.tier >= 4
-        self.balloon_manager.pop_balloon(target, target.x, target.y)
+        self.balloon_manager.pop_balloon(target, target.x, target.y, damage_type="magic")
         if will_pop:
             self.level_manager.balloon_popped()
 
@@ -492,7 +492,7 @@ class Game:
         for _, arc_target in candidates[:arc_count]:
             manager.trigger_strike((target.x, target.y), (arc_target.x, arc_target.y), apply_cooldown=False)
             arc_pop = arc_target.tier >= 4
-            self.balloon_manager.pop_balloon(arc_target, arc_target.x, arc_target.y)
+            self.balloon_manager.pop_balloon(arc_target, arc_target.x, arc_target.y, damage_type="magic")
             if arc_pop:
                 self.level_manager.balloon_popped()
 
