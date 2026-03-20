@@ -884,7 +884,11 @@ class Shop:
             
             # Check upgrade buttons - 2x5 grid (10 total)
             grid_start_x = 80
-            grid_start_y = 170
+            # If showing stars (level complete), start grid below star panel
+            if self.show_next_level:
+                grid_start_y = 280  # Below star panel (panel_y=115, height=150, ends at 265)
+            else:
+                grid_start_y = 170
             btn_width = 420
             btn_height = 110
             col_gap = 80
