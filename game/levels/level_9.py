@@ -1,171 +1,166 @@
-"""Level 9 - Side-entry squadrons, bees, and aggressive sweeps."""
+"""Level 9 - MOAB Introduction with All Previous Types."""
 
-from typing import List
+import math
+from typing import List, Tuple
 
 from ..constants import BALLOON_SPEED, SCREEN_WIDTH
-from ..enemies import Balloon, get_balloon_radius
+from ..enemies import (
+    Balloon, get_balloon_radius,
+    BALLOON_TYPE_MOAB, BALLOON_TYPE_CERAMIC, BALLOON_TYPE_LEAD,
+    BALLOON_TYPE_BLACK, BALLOON_TYPE_WHITE,
+    BALLOON_TYPE_ZEBRA, BALLOON_TYPE_RAINBOW
+)
 
 LEVEL_NUMBER = 9
-LEVEL_NAME = "Honeycomb Havoc"
-BALLOON_TIER = 0
+LEVEL_NAME = "MOAB Rising"
+BALLOON_TIER = 4
 
-MAX_RADIUS = get_balloon_radius(0)
+MAX_RADIUS = get_balloon_radius(4)
 STEP = MAX_RADIUS * 2 + 12
-BEE_BODY_STEP = STEP * 0.95
-
-
-def _add_balloon(
-    balloons: List[Balloon],
-    x: float,
-    y: float,
-    tier: int,
-    pattern: str,
-    pattern_data: dict,
-    speed_multiplier: float = 1.0,
-) -> None:
-    balloons.append(
-        Balloon(
-            x=x,
-            y=y,
-            tier=tier,
-            speed=BALLOON_SPEED,
-            speed_multiplier=speed_multiplier,
-            pattern=pattern,
-            pattern_data=pattern_data,
-        )
-    )
-
-
-def _add_scout_line(
-    balloons: List[Balloon],
-    start_y: float,
-    vx: float,
-    count: int,
-    phase_offset: float,
-) -> None:
-    if vx > 0:
-        start_x = -MAX_RADIUS * 2
-        spacing = -STEP * 1.08
-    else:
-        start_x = SCREEN_WIDTH + MAX_RADIUS * 2
-        spacing = STEP * 1.08
-
-    for index in range(count):
-        _add_balloon(
-            balloons,
-            start_x + index * spacing,
-            start_y - index * STEP * 0.26,
-            index % 5,
-            "drift",
-            {
-                "vx": vx,
-                "vy": 1.9,
-                "sway_amplitude": 0.18,
-                "sway_frequency": 0.05,
-                "phase": phase_offset + index * 0.35,
-            },
-        )
-
-
-def _add_bee(
-    balloons: List[Balloon],
-    center_x: float,
-    center_y: float,
-    wave_phase: float,
-) -> None:
-    motion = {"amplitude": 32, "frequency": 0.05, "phase": wave_phase}
-    for offset_x, offset_y, tier in [
-        (-1.5, 0.0, 4),
-        (-0.5, 0.0, 1),
-        (0.5, 0.0, 4),
-        (1.5, 0.0, 1),
-        (2.5, 0.0, 4),
-    ]:
-        _add_balloon(
-            balloons,
-            center_x + offset_x * BEE_BODY_STEP,
-            center_y + offset_y * BEE_BODY_STEP,
-            tier,
-            "wave",
-            dict(motion),
-            speed_multiplier=1.95,
-        )
-
-    for wing_x, wing_y in [(-0.5, -1.05), (1.5, -1.05)]:
-        _add_balloon(
-            balloons,
-            center_x + wing_x * BEE_BODY_STEP,
-            center_y + wing_y * BEE_BODY_STEP,
-            3,
-            "wave",
-            dict(motion),
-            speed_multiplier=1.95,
-        )
-
-    _add_balloon(
-        balloons,
-        center_x + 3.55 * BEE_BODY_STEP,
-        center_y - 0.15 * BEE_BODY_STEP,
-        0,
-        "wave",
-        dict(motion),
-        speed_multiplier=1.95,
-    )
-
-
-def _add_honeycomb_block(
-    balloons: List[Balloon],
-    start_x: float,
-    start_y: float,
-    vx: float,
-    sway_phase: float,
-) -> None:
-    rows = 4
-    cols = 4
-    for row in range(rows):
-        for col in range(cols):
-            x = start_x + col * STEP * 0.98 + (row % 2) * STEP * 0.49
-            y = start_y - row * STEP * 0.88
-            tier = (row + col) % 5
-            _add_balloon(
-                balloons,
-                x,
-                y,
-                tier,
-                "drift",
-                {
-                    "vx": vx,
-                    "vy": 2.4,
-                    "sway_amplitude": 1.15,
-                    "sway_frequency": 0.035,
-                    "phase": sway_phase + row * 0.6,
-                },
-            )
 
 
 def create_balloons() -> List[Balloon]:
-    """Create lateral attack lines and bee-themed formations."""
-    balloons: List[Balloon] = []
-
-    _add_scout_line(balloons, start_y=-180, vx=4.6, count=10, phase_offset=0.0)
-    _add_scout_line(balloons, start_y=-420, vx=-4.6, count=10, phase_offset=1.5)
-    _add_scout_line(balloons, start_y=-660, vx=4.9, count=10, phase_offset=2.7)
-
-    _add_bee(balloons, 280, -980, wave_phase=0.0)
-    _add_bee(balloons, SCREEN_WIDTH - 310, -1160, wave_phase=1.2)
-    _add_bee(balloons, SCREEN_WIDTH / 2, -1340, wave_phase=2.3)
-
-    _add_honeycomb_block(balloons, start_x=-220, start_y=-1640, vx=3.2, sway_phase=0.6)
-    _add_honeycomb_block(
-        balloons,
-        start_x=SCREEN_WIDTH - 80,
-        start_y=-1880,
-        vx=-3.2,
-        sway_phase=2.2,
-    )
-
+    """Wave 1: First MOAB with escort."""
+    balloons = []
+    center_x = SCREEN_WIDTH / 2
+    center_y = -200
+    
+    # MOAB in center
+    balloons.append(Balloon(x=center_x, y=center_y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_MOAB))
+    
+    # Ceramic escort ring
+    for i in range(8):
+        angle = (i / 8) * 2 * math.pi
+        x = center_x + math.cos(angle) * 150
+        y = center_y + math.sin(angle) * 100
+        balloons.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_CERAMIC))
+    
+    # Lead outer ring
+    for i in range(12):
+        angle = (i / 12) * 2 * math.pi
+        x = center_x + math.cos(angle) * 220
+        y = center_y + math.sin(angle) * 150
+        balloons.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_LEAD))
+    
+    # Colorful support
+    for i in range(16):
+        angle = (i / 16) * 2 * math.pi
+        x = center_x + math.cos(angle) * 280
+        y = center_y + math.sin(angle) * 180
+        tier = i % 5
+        balloons.append(Balloon(x=x, y=y, tier=tier, speed=BALLOON_SPEED))
+    
     return balloons
 
 
+def get_delayed_spawns() -> List[Tuple[float, List[Balloon]]]:
+    """Waves 2-5 with 7s breathing room."""
+    delayed = []
+    
+    # Wave 2: Heavy assault (7s)
+    balloons2 = []
+    for row in range(5):
+        for col in range(10):
+            x = 80 + col * 60
+            y = -60 - row * 50
+            pattern = (row + col) % 8
+            if pattern == 0:
+                balloons2.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_CERAMIC))
+            elif pattern == 1:
+                balloons2.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_LEAD))
+            else:
+                balloons2.append(Balloon(x=x, y=y, tier=pattern - 2, speed=BALLOON_SPEED))
+    
+    delayed.append((7.0, balloons2))
+    
+    # Wave 3: Second MOAB with different escort (14s)
+    balloons3 = []
+    center_x = SCREEN_WIDTH / 2
+    center_y = -250
+    
+    # MOAB
+    balloons3.append(Balloon(x=center_x, y=center_y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_MOAB))
+    
+    # Zebra and rainbow escort
+    for i in range(10):
+        angle = (i / 10) * 2 * math.pi
+        x = center_x + math.cos(angle) * 140
+        y = center_y + math.sin(angle) * 90
+        btype = BALLOON_TYPE_ZEBRA if i % 2 == 0 else BALLOON_TYPE_RAINBOW
+        balloons3.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=btype))
+    
+    # Black and white outer
+    for i in range(12):
+        angle = (i / 12) * 2 * math.pi
+        x = center_x + math.cos(angle) * 200
+        y = center_y + math.sin(angle) * 130
+        btype = BALLOON_TYPE_BLACK if i % 2 == 0 else BALLOON_TYPE_WHITE
+        balloons3.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=btype))
+    
+    delayed.append((14.0, balloons3))
+    
+    # Wave 4: Mixed chaos (21s)
+    balloons4 = []
+    for row in range(8):
+        for col in range(12):
+            x = 50 + col * 55
+            y = -60 - row * 50
+            
+            pattern = (row + col) % 12
+            if pattern == 0:
+                balloons4.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_CERAMIC))
+            elif pattern == 1:
+                balloons4.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_LEAD))
+            elif pattern == 2:
+                balloons4.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_ZEBRA))
+            elif pattern == 3:
+                balloons4.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_RAINBOW))
+            elif pattern == 4:
+                balloons4.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_BLACK))
+            elif pattern == 5:
+                balloons4.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_WHITE))
+            else:
+                balloons4.append(Balloon(x=x, y=y, tier=pattern - 6, speed=BALLOON_SPEED))
+    
+    delayed.append((21.0, balloons4))
+    
+    # Wave 5: Final MOAB wave (28s)
+    balloons5 = []
+    center_x = SCREEN_WIDTH / 2
+    center_y = -300
+    
+    # Two MOABs side by side
+    balloons5.append(Balloon(x=center_x - 120, y=center_y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_MOAB))
+    balloons5.append(Balloon(x=center_x + 120, y=center_y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_MOAB))
+    
+    # Ceramic cluster between
+    for ring in range(2):
+        count = 4 + ring * 4
+        for i in range(count):
+            angle = (i / count) * 2 * math.pi
+            radius = ring * 25 + 20
+            x = center_x + math.cos(angle) * radius
+            y = center_y + math.sin(angle) * radius
+            balloons5.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_CERAMIC))
+    
+    # All type outer ring
+    for i in range(24):
+        angle = (i / 24) * 2 * math.pi
+        radius = 200
+        x = center_x + math.cos(angle) * radius
+        y = center_y + math.sin(angle) * radius * 0.7
+        pattern = i % 8
+        if pattern < 6:
+            btypes = [BALLOON_TYPE_LEAD, BALLOON_TYPE_CERAMIC, BALLOON_TYPE_ZEBRA, 
+                      BALLOON_TYPE_RAINBOW, BALLOON_TYPE_BLACK, BALLOON_TYPE_WHITE]
+            balloons5.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=btypes[pattern]))
+        else:
+            balloons5.append(Balloon(x=x, y=y, tier=pattern - 6, speed=BALLOON_SPEED))
+    
+    delayed.append((28.0, balloons5))
+    
+    return delayed
+
+
 def get_total_balloons() -> int:
-    return 83
+    return 37 + 50 + 23 + 96 + 32  # 238

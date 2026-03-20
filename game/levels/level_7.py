@@ -1,163 +1,148 @@
-"""Level 7 - Floral formations with polished circular motion."""
+"""Level 7 - Lead Balloons with All Previous Types."""
 
 import math
-from typing import List
+from typing import List, Tuple
 
 from ..constants import BALLOON_SPEED, SCREEN_WIDTH
-from ..enemies import Balloon, get_balloon_radius
+from ..enemies import (
+    Balloon, get_balloon_radius,
+    BALLOON_TYPE_LEAD, BALLOON_TYPE_BLACK, BALLOON_TYPE_WHITE,
+    BALLOON_TYPE_ZEBRA, BALLOON_TYPE_RAINBOW
+)
 
 LEVEL_NUMBER = 7
-LEVEL_NAME = "Bloom Ballet"
-BALLOON_TIER = 0
+LEVEL_NAME = "Heavy Metal"
+BALLOON_TIER = 4
 
-MAX_RADIUS = get_balloon_radius(0)
+MAX_RADIUS = get_balloon_radius(4)
 STEP = MAX_RADIUS * 2 + 12
-PETAL_RADIUS = STEP * 1.25
-OUTER_RING_RADIUS = STEP * 2.3
-BUD_RADIUS = STEP * 0.95
-
-
-def _add_balloon(
-    balloons: List[Balloon],
-    x: float,
-    y: float,
-    tier: int,
-    speed_multiplier: float,
-    pattern: str,
-    pattern_data: dict,
-) -> None:
-    balloons.append(
-        Balloon(
-            x=x,
-            y=y,
-            tier=tier,
-            speed=BALLOON_SPEED,
-            speed_multiplier=speed_multiplier,
-            pattern=pattern,
-            pattern_data=pattern_data,
-        )
-    )
-
-
-def _add_large_bloom(
-    balloons: List[Balloon],
-    center_x: float,
-    center_y: float,
-    phase: float,
-    speed_multiplier: float,
-) -> None:
-    motion = {"radius": 0.0, "frequency": 0.05, "phase": phase}
-    _add_balloon(balloons, center_x, center_y, 1, speed_multiplier, "circular", dict(motion))
-
-    for index in range(8):
-        angle = index * (math.tau / 8)
-        x = center_x + math.cos(angle) * PETAL_RADIUS
-        y = center_y + math.sin(angle) * PETAL_RADIUS * 0.86
-        tier = 0 if index % 2 == 0 else 4
-        _add_balloon(balloons, x, y, tier, speed_multiplier, "circular", dict(motion))
-
-    for index in range(16):
-        angle = index * (math.tau / 16) + math.pi / 16
-        x = center_x + math.cos(angle) * OUTER_RING_RADIUS
-        y = center_y + math.sin(angle) * OUTER_RING_RADIUS * 0.86
-        tier = 2 if index % 2 == 0 else 3
-        _add_balloon(balloons, x, y, tier, speed_multiplier, "circular", dict(motion))
-
-    for leaf_x in (-0.9, 0.9):
-        _add_balloon(
-            balloons,
-            center_x + leaf_x * STEP,
-            center_y + STEP * 2.45,
-            2,
-            speed_multiplier,
-            "circular",
-            dict(motion),
-        )
-
-
-def _add_bud(
-    balloons: List[Balloon],
-    center_x: float,
-    center_y: float,
-    phase: float,
-    speed_multiplier: float,
-) -> None:
-    motion = {"amplitude": 34, "frequency": 0.04, "phase": phase}
-    _add_balloon(balloons, center_x, center_y, 1, speed_multiplier, "wave", dict(motion))
-
-    for index in range(6):
-        angle = -math.pi / 2 + index * (math.tau / 6)
-        x = center_x + math.cos(angle) * BUD_RADIUS
-        y = center_y + math.sin(angle) * BUD_RADIUS * 0.88
-        tier = 0 if index in (0, 1, 5) else 4
-        _add_balloon(balloons, x, y, tier, speed_multiplier, "wave", dict(motion))
-
-    for leaf_x in (-0.72, 0.72):
-        _add_balloon(
-            balloons,
-            center_x + leaf_x * STEP,
-            center_y + STEP * 1.6,
-            2,
-            speed_multiplier,
-            "wave",
-            dict(motion),
-        )
-
-
-def _add_vine_arc(
-    balloons: List[Balloon],
-    center_x: float,
-    center_y: float,
-    speed_multiplier: float,
-) -> None:
-    motion = {"amplitude": 28, "frequency": 0.035, "phase": 1.4}
-    offsets = [-4.5, -3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5, 4.5]
-    for index, dx in enumerate(offsets):
-        arch = 1.0 - (dx / 4.8) ** 2
-        x = center_x + dx * STEP
-        y = center_y - arch * STEP * 1.2
-        tier = 2 if index % 2 == 0 else 1
-        _add_balloon(balloons, x, y, tier, speed_multiplier, "wave", dict(motion))
 
 
 def create_balloons() -> List[Balloon]:
-    """Create layered floral set pieces with clean spacing and motion."""
-    balloons: List[Balloon] = []
-
-    first_row_x = [220, SCREEN_WIDTH / 2, SCREEN_WIDTH - 220]
-    for index, x in enumerate(first_row_x):
-        _add_large_bloom(
-            balloons,
-            x,
-            -240,
-            phase=index * 0.8,
-            speed_multiplier=1.9,
-        )
-
-    second_row_x = [340, SCREEN_WIDTH - 340]
-    for index, x in enumerate(second_row_x):
-        _add_large_bloom(
-            balloons,
-            x,
-            -760,
-            phase=1.0 + index * 1.2,
-            speed_multiplier=2.1,
-        )
-
-    _add_vine_arc(balloons, SCREEN_WIDTH / 2, -1120, speed_multiplier=1.8)
-
-    bud_positions = [180, 420, 705, 945]
-    for index, x in enumerate(bud_positions):
-        _add_bud(
-            balloons,
-            x,
-            -1360 - (index % 2) * 80,
-            phase=index * 0.9,
-            speed_multiplier=1.85,
-        )
-
+    """Wave 1: Lead balloons in shield formation."""
+    balloons = []
+    center_x = SCREEN_WIDTH / 2
+    center_y = -200
+    
+    # Lead shield outline
+    for i in range(16):
+        angle = (i / 16) * 2 * math.pi
+        x = center_x + math.cos(angle) * 100
+        y = center_y + math.sin(angle) * 80
+        balloons.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_LEAD))
+    
+    # Inner lead cross
+    for i in range(-3, 4):
+        balloons.append(Balloon(x=center_x + i * 35, y=center_y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_LEAD))
+        if i != 0:
+            balloons.append(Balloon(x=center_x, y=center_y + i * 35, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_LEAD))
+    
+    # Colorful balloons around (all previous types)
+    for i in range(20):
+        angle = (i / 20) * 2 * math.pi
+        radius = 160
+        x = center_x + math.cos(angle) * radius
+        y = center_y + math.sin(angle) * radius * 0.8
+        tier = i % 5
+        balloons.append(Balloon(x=x, y=y, tier=tier, speed=BALLOON_SPEED))
+    
     return balloons
 
 
+def get_delayed_spawns() -> List[Tuple[float, List[Balloon]]]:
+    """Waves 2-5 with 7s breathing room."""
+    delayed = []
+    
+    # Wave 2: Lead wall with mixed support (7s)
+    balloons2 = []
+    for row in range(4):
+        for col in range(12):
+            x = 80 + col * 60
+            y = -80 - row * 50
+            if row == 0 or row == 3:
+                balloons2.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_LEAD))
+            else:
+                tier = (row + col) % 5
+                balloons2.append(Balloon(x=x, y=y, tier=tier, speed=BALLOON_SPEED))
+    
+    delayed.append((7.0, balloons2))
+    
+    # Wave 3: Lead anchors with zebra/rainbow (14s)
+    balloons3 = []
+    # Lead anchors at corners
+    for cx, cy in [(100, -150), (540, -150), (100, -350), (540, -350)]:
+        for ring in range(2):
+            count = 4 + ring * 4
+            for i in range(count):
+                angle = (i / count) * 2 * math.pi
+                radius = ring * 20 + 20
+                x = cx + math.cos(angle) * radius
+                y = cy + math.sin(angle) * radius
+                balloons3.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_LEAD))
+    
+    # Zebra and rainbow connectors
+    for i in range(10):
+        x = 180 + i * 35
+        y = -250
+        btype = BALLOON_TYPE_ZEBRA if i % 2 == 0 else BALLOON_TYPE_RAINBOW
+        balloons3.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=btype))
+    
+    delayed.append((14.0, balloons3))
+    
+    # Wave 4: Lead spiral with all types (21s)
+    balloons4 = []
+    center_x = SCREEN_WIDTH / 2
+    center_y = -280
+    
+    for i in range(30):
+        angle = i * 0.4
+        radius = 30 + i * 8
+        x = center_x + math.cos(angle) * radius
+        y = center_y + math.sin(angle) * radius * 0.6
+        if i % 5 == 0:
+            balloons4.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_LEAD))
+        else:
+            tier = i % 5
+            balloons4.append(Balloon(x=x, y=y, tier=tier, speed=BALLOON_SPEED))
+    
+    delayed.append((21.0, balloons4))
+    
+    # Wave 5: Lead fortress (28s)
+    balloons5 = []
+    center_x = SCREEN_WIDTH / 2
+    center_y = -300
+    
+    # Outer lead wall
+    for i in range(20):
+        angle = (i / 20) * 2 * math.pi
+        x = center_x + math.cos(angle) * 150
+        y = center_y + math.sin(angle) * 120
+        balloons5.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_LEAD))
+    
+    # Inner mixed types
+    for ring in range(3):
+        count = 6 + ring * 6
+        for i in range(count):
+            angle = (i / count) * 2 * math.pi
+            radius = ring * 35 + 25
+            x = center_x + math.cos(angle) * radius
+            y = center_y + math.sin(angle) * radius
+            pattern = (ring + i) % 8
+            if pattern == 0:
+                balloons5.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_BLACK))
+            elif pattern == 1:
+                balloons5.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_WHITE))
+            elif pattern == 2:
+                balloons5.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_ZEBRA))
+            elif pattern == 3:
+                balloons5.append(Balloon(x=x, y=y, tier=4, speed=BALLOON_SPEED, balloon_type=BALLOON_TYPE_RAINBOW))
+            else:
+                balloons5.append(Balloon(x=x, y=y, tier=pattern - 4, speed=BALLOON_SPEED))
+    
+    delayed.append((28.0, balloons5))
+    
+    return delayed
+
+
 def get_total_balloons() -> int:
-    return 181
+    return 43 + 48 + 66 + 30 + 74  # 261

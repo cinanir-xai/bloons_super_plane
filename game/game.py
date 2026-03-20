@@ -71,6 +71,14 @@ class Game:
         
         # Current level being played
         self.current_level = 1
+        
+        # Level completion state
+        self.level_complete_timer = 0.0  # 3 second delay before shop
+        self.level_complete_pending = False
+        self.level_complete_stars = 0
+        self.level_complete_popped = 0
+        self.level_complete_total = 0
+        self.level_complete_ratio = 0.0
 
     def _load_level(self, level_num: int) -> None:
         """Load a specific level."""
@@ -80,6 +88,9 @@ class Game:
         self.level_start_orbs = self.orb_manager.total_orbs
         self.level_total_balloons = len(balloons)
         pygame.mouse.set_visible(False)
+        # Reset completion state
+        self.level_complete_timer = 0.0
+        self.level_complete_pending = False
 
     def _handle_debug_menu_input(self, event: pygame.event.Event) -> None:
         """Handle debug shortcuts on the main menu."""
@@ -419,18 +430,28 @@ class Game:
         if self.player.has_wingman:
             self._update_wingmen(dt)
 
-        # Check if level complete (all balloons popped or off-screen)
+        # Check if level complete (all balloons popped or off-screen, no delayed spawns)
         remaining = self.balloon_manager.get_remaining_count()
-        if remaining <= 0:
-            self.level_manager.level_complete = True
+        delayed_remaining = len(self.level_manager.delayed_spawns)
         
-        if self.level_manager.level_complete:
-            self._handle_level_complete_flow()
-
-    def _handle_level_complete_flow(self) -> None:
-        """Compute stars earned, update unlocks, and show end screen."""
+        if remaining <= 0 and delayed_remaining == 0:
+            if not self.level_complete_pending:
+                # Start the completion timer
+                self.level_complete_pending = True
+                self.level_complete_timer = 0.0
+                # Calculate stars now
+                self._calculate_level_completion()
+        
+        # Handle completion timer
+        if self.level_complete_pending:
+            self.level_complete_timer += dt
+            if self.level_complete_timer >= 3.0:
+                self._handle_level_complete_flow()
+    
+    def _calculate_level_completion(self) -> None:
+        """Calculate stars and stats for level completion."""
         total = max(1, self.level_total_balloons)
-        popped = total - self.balloon_manager.get_remaining_count() - self.balloon_manager.get_total_off_screen()
+        popped = total - self.balloon_manager.get_total_off_screen()
         popped = max(0, min(total, popped))
         ratio = popped / total
         
@@ -442,6 +463,18 @@ class Game:
             stars = 1
         else:
             stars = 0
+        
+        self.level_complete_stars = stars
+        self.level_complete_popped = popped
+        self.level_complete_total = total
+        self.level_complete_ratio = ratio
+
+    def _handle_level_complete_flow(self) -> None:
+        """Use pre-calculated stars and go to shop."""
+        stars = self.level_complete_stars
+        popped = self.level_complete_popped
+        total = self.level_complete_total
+        ratio = self.level_complete_ratio
         perfect = popped == total
         
         previous_stars = self.level_stars.get(self.level_manager.current_level_num, 0)
@@ -608,6 +641,9 @@ class Game:
             self.vignette.draw(temp_surface)
             # Draw delay countdown if applicable
             self._draw_delay_countdown(temp_surface)
+            # Draw completion overlay if pending
+            if self.level_complete_pending:
+                self._draw_completion_overlay(temp_surface)
             self.screen.blit(temp_surface, shake_offset)
         else:
             self.background.draw(self.screen)
@@ -617,6 +653,79 @@ class Game:
             self.vignette.draw(self.screen)
             # Draw delay countdown if applicable
             self._draw_delay_countdown(self.screen)
+            # Draw completion overlay if pending
+            if self.level_complete_pending:
+                self._draw_completion_overlay(self.screen)
+
+    def _draw_completion_overlay(self, surface: pygame.Surface) -> None:
+        """Draw stars and completion message during 3-second delay."""
+        import math
+        
+        # Semi-transparent overlay
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        alpha = min(180, int(self.level_complete_timer * 60))  # Fade in
+        overlay.fill((0, 0, 0, alpha))
+        surface.blit(overlay, (0, 0))
+        
+        # Draw stars in center
+        center_x = SCREEN_WIDTH // 2
+        center_y = SCREEN_HEIGHT // 2 - 50
+        star_size = 60
+        
+        # Pulsing effect
+        pulse = 1.0 + 0.1 * math.sin(self.level_complete_timer * 5)
+        
+        for i in range(3):
+            x = center_x + (i - 1) * 90
+            y = center_y
+            
+            if i < self.level_complete_stars:
+                # Filled star (gold)
+                color = (255, 215, 0)  # Gold
+                self._draw_star(surface, x, y, int(star_size * pulse), color, filled=True)
+            else:
+                # Empty star outline
+                color = (100, 100, 100)
+                self._draw_star(surface, x, y, star_size, color, filled=False)
+        
+        # Draw "Level Complete!" text
+        font_large = pygame.font.Font(None, 72)
+        text = font_large.render("Level Complete!", True, (255, 255, 255))
+        text_rect = text.get_rect(center=(center_x, center_y + 100))
+        surface.blit(text, text_rect)
+        
+        # Draw score info
+        font_small = pygame.font.Font(None, 36)
+        score_text = f"Popped: {self.level_complete_popped}/{self.level_complete_total}"
+        score_surface = font_small.render(score_text, True, (200, 200, 200))
+        score_rect = score_surface.get_rect(center=(center_x, center_y + 150))
+        surface.blit(score_surface, score_rect)
+        
+        # Draw countdown
+        remaining = max(0, 3.0 - self.level_complete_timer)
+        countdown_text = f"Next in {remaining:.1f}s"
+        countdown_surface = font_small.render(countdown_text, True, (150, 150, 150))
+        countdown_rect = countdown_surface.get_rect(center=(center_x, center_y + 190))
+        surface.blit(countdown_surface, countdown_rect)
+    
+    def _draw_star(self, surface: pygame.Surface, cx: int, cy: int, size: int, color: tuple, filled: bool = True) -> None:
+        """Draw a 5-pointed star."""
+        import math
+        
+        points = []
+        for i in range(10):
+            angle = i * math.pi / 5 - math.pi / 2
+            r = size if i % 2 == 0 else size * 0.4
+            x = cx + math.cos(angle) * r
+            y = cy + math.sin(angle) * r
+            points.append((x, y))
+        
+        if filled:
+            pygame.draw.polygon(surface, color, points)
+            # Highlight
+            pygame.draw.polygon(surface, (255, 255, 200), points, 2)
+        else:
+            pygame.draw.polygon(surface, color, points, 2)
 
     def _draw_delay_countdown(self, surface: pygame.Surface) -> None:
         """Draw countdown timer for delayed balloon spawns."""
